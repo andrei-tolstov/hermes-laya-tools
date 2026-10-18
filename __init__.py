@@ -36,7 +36,20 @@ _router: Optional[ToolRouter] = None
 
 # Track original toolsets per session to support cleanly restoring or inspecting tools
 _saved_agent_tools: Dict[str, list[Any]] = {}
+_audited_turns: Set[str] = set()
 _session_lock = threading.Lock()
+
+
+def _get_tools_fallback() -> list[Any]:
+    """Retrieve default tool definitions from Hermes model_tools if agent is unreachable."""
+    try:
+        from agent import model_tools
+        tools = model_tools.get_tool_definitions()
+        if isinstance(tools, list) and tools:
+            return tools
+    except Exception:
+        pass
+    return []
 
 
 def _get_agent_from_runtime(session_id: str | None = None) -> Any:
@@ -44,27 +57,30 @@ def _get_agent_from_runtime(session_id: str | None = None) -> Any:
     frame = sys._getframe()
     try:
         while frame is not None:
-            cand = frame.f_locals.get("agent")
-            if cand is not None and hasattr(cand, "tools"):
-                if not session_id or str(getattr(cand, "session_id", "")) == str(session_id):
-                    return cand
+            for name in ("agent", "self", "a"):
+                cand = frame.f_locals.get(name)
+                if cand is not None and hasattr(cand, "tools"):
+                    cand_sess = str(getattr(cand, "session_id", ""))
+                    if not session_id or cand_sess == str(session_id) or not cand_sess:
+                        return cand
             frame = frame.f_back
     finally:
         del frame
 
-    if session_id:
-        try:
-            frames = sys._current_frames()
-            for tid, t_frame in frames.items():
-                curr = t_frame
-                while curr is not None:
-                    cand = curr.f_locals.get("agent")
+    try:
+        frames = sys._current_frames()
+        for tid, t_frame in frames.items():
+            curr = t_frame
+            while curr is not None:
+                for name in ("agent", "self", "a"):
+                    cand = curr.f_locals.get(name)
                     if cand is not None and hasattr(cand, "tools"):
-                        if str(getattr(cand, "session_id", "")) == str(session_id):
+                        cand_sess = str(getattr(cand, "session_id", ""))
+                        if not session_id or cand_sess == str(session_id) or not cand_sess:
                             return cand
-                    curr = curr.f_back
-        except Exception:
-            pass
+                curr = curr.f_back
+    except Exception:
+        pass
     return None
 
 
@@ -95,6 +111,7 @@ def register(ctx: Any) -> None:
 
     # Register hooks
     ctx.register_hook("pre_llm_call", _on_pre_llm_call)
+    ctx.register_hook("pre_api_request", _on_pre_api_request)
     ctx.register_hook("on_session_end", _on_session_end)
 
     # Register /laya slash command
@@ -123,20 +140,22 @@ def _on_pre_llm_call(session_id: str = "", turn_id: str = "", **kwargs: Any) -> 
     In active mode: narrows agent.tools to Laya Top-10 / strips if direct chat.
     In shadow mode: runs full Laya evaluation, records audit log, but leaves agent.tools intact.
     """
-    global _router, _config, _saved_agent_tools
+    global _router, _config, _saved_agent_tools, _audited_turns
 
     if not _router or not _config or not _config.enabled:
         return None
 
     agent = kwargs.get("agent") or _get_agent_from_runtime(session_id)
-    if agent is None or not hasattr(agent, "tools"):
-        return None
+    all_tools = getattr(agent, "tools", None) if agent is not None else None
+    if not isinstance(all_tools, list) or not all_tools:
+        all_tools = kwargs.get("tools") or _get_tools_fallback()
 
-    all_tools = getattr(agent, "tools", None)
     if not isinstance(all_tools, list) or not all_tools:
         return None
 
+    turn_key = f"{session_id}:{turn_id}"
     with _session_lock:
+        _audited_turns.add(turn_key)
         if session_id and session_id not in _saved_agent_tools:
             _saved_agent_tools[session_id] = list(all_tools)
 
@@ -151,8 +170,9 @@ def _on_pre_llm_call(session_id: str = "", turn_id: str = "", **kwargs: Any) -> 
         # SHADOW MODE: Strictly DO NOT alter agent.tools and DO NOT inject context!
         return None
 
-    # ACTIVE MODE: Apply filtered toolset to agent
-    agent.tools = effective_tools
+    # ACTIVE MODE: Apply filtered toolset to agent if agent instance was found
+    if agent is not None and hasattr(agent, "tools"):
+        agent.tools = effective_tools
 
     # Optional chat notification
     if _config.notify_in_chat:
@@ -161,6 +181,46 @@ def _on_pre_llm_call(session_id: str = "", turn_id: str = "", **kwargs: Any) -> 
             return {"context": notice}
 
     return None
+
+
+def _on_pre_api_request(**kwargs: Any) -> None:
+    """Observer hook fired right before an LLM provider call.
+
+    Guarantees every request is evaluated and audited in Laya, even if
+    pre_llm_call was bypassed or agent was detached.
+    """
+    global _router, _config, _audited_turns
+
+    if not _router or not _config or not _config.enabled:
+        return
+
+    session_id = str(kwargs.get("session_id") or "")
+    turn_id = str(kwargs.get("turn_id") or "")
+    turn_key = f"{session_id}:{turn_id}"
+
+    with _session_lock:
+        if turn_key in _audited_turns:
+            return
+        if len(_audited_turns) > 1000:
+            _audited_turns.clear()
+        _audited_turns.add(turn_key)
+
+    req = kwargs.get("request") or {}
+    body = req.get("body") if isinstance(req, dict) else {}
+    tools = body.get("tools") or []
+
+    if not isinstance(tools, list) or not tools:
+        tools = _get_tools_fallback()
+
+    if not tools:
+        return
+
+    _router.route_tools(
+        tools=tools,
+        context=kwargs,
+        session_id=session_id,
+        turn_id=turn_id,
+    )
 
 
 def _format_notice(decision: Dict[str, Any]) -> str:

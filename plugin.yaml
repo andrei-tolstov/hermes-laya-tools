@@ -6,5 +6,6 @@ license: MIT
 manifest_version: 2
 provides_hooks:
   - pre_llm_call
+  - pre_api_request
   - on_session_end
 tags: [laya, tools, routing, system1, shadow-mode]

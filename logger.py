@@ -32,8 +32,10 @@ class LayaAuditLogger:
     def _ensure_dir(self) -> None:
         try:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
+            if not self.log_path.exists():
+                self.log_path.touch()
         except Exception as exc:
-            logger.warning("Could not create log directory %s: %s", self.log_path.parent, exc)
+            logger.warning("Could not create log file %s: %s", self.log_path, exc)
 
     def log_interaction(
         self,

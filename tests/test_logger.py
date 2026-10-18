@@ -11,6 +11,7 @@ from logger import LayaAuditLogger
 def test_audit_logger_active_mode(tmp_path):
     log_file = tmp_path / "audit.jsonl"
     logger = LayaAuditLogger(log_file)
+    assert log_file.is_file()
 
     entry = logger.log_interaction(
         session_id="sess-123",

@@ -6,12 +6,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import LayaConfig, load_hermes_env
 
 
-def test_default_config(monkeypatch):
+def test_default_config(monkeypatch, tmp_path):
     for k in list(os.environ.keys()):
         if k.startswith("LAYA_"):
             monkeypatch.delenv(k, raising=False)
 
-    cfg = LayaConfig.from_env()
+    empty_env = tmp_path / "empty.env"
+    empty_env.write_text("", encoding="utf-8")
+    cfg = LayaConfig.from_env(env_path=empty_env)
     assert cfg.sidecar_url == "http://127.0.0.1:8787"
     assert cfg.enabled is True
     assert cfg.mode == "active"
