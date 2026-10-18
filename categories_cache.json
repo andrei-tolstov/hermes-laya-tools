@@ -1,0 +1,38 @@
+{
+  "lastCategorizedAt": 0,
+  "toolsSignature": "",
+  "categories": {
+    "filesystem": {
+      "description": "File and directory operations (reading, writing, editing, listing, searching files)",
+      "tools": []
+    },
+    "terminal_execution": {
+      "description": "Executing shell, bash, powershell commands, terminal scripts, and command-line processes",
+      "tools": []
+    },
+    "web_and_search": {
+      "description": "Internet web search, downloading web pages, HTTP APIs, and online fetching",
+      "tools": []
+    },
+    "browser_automation": {
+      "description": "Browser UI automation, web page navigation, clicking, typing, and desktop inspection",
+      "tools": []
+    },
+    "code_and_git": {
+      "description": "Source code inspection, git version control, repository commits, and code analysis",
+      "tools": []
+    },
+    "devops_containers": {
+      "description": "Docker containers, system administration, processes, services, and infrastructure",
+      "tools": []
+    },
+    "external_messaging": {
+      "description": "Sending notifications or messages to external services (Telegram, Slack, webhooks) or interactive confirmation dialogs",
+      "tools": []
+    },
+    "general_utility": {
+      "description": "Calculation, formatting, time, data transformations, and general utilities",
+      "tools": []
+    }
+  }
+}

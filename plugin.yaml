@@ -1,0 +1,10 @@
+name: hermes-laya-tools
+version: 0.1.0
+description: "Smart System 1 Tool Routing and Top-10 Selection powered by Laya Decision Engine, with Shadow Mode and Audit Logging."
+author: Andrei
+license: MIT
+manifest_version: 2
+provides_hooks:
+  - pre_llm_call
+  - on_session_end
+tags: [laya, tools, routing, system1, shadow-mode]
