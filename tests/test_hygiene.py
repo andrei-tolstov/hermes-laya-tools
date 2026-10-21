@@ -133,4 +133,7 @@ def test_recategorize_summary_report(tmp_path):
     assert report["total_tools"] == 3
     assert "filesystem" in report["counts"]
     assert "terminal_execution" in report["counts"]
-    assert "Разбито 3 инструментов" in report["message"]
+    assert "Всего тулзов: 3, категорий: 2" in report["message"]
+    assert "filesystem: 2" in report["message"]
+    assert "terminal_execution: 1" in report["message"]
+    assert "Всего тулзов: 3, категорий: 2" in cat.last_distribution_summary

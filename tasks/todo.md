@@ -45,3 +45,10 @@
 ### 4. Верификация
 - Локальный набор тестов: 37 тестов успешно пройдены (7 тестовых модулей, 0 сбоев).
 - Удаленный сервер `192.168.50.38`: все 37 тестов пройдены, плагин активен в `hermes plugins list` и `hermes plugins info hermes-laya-tools`.
+
+### 5. Короткое сообщение о распределении инструментов по категориям
+- Реализован стандартизированный короткий формат:
+  `Всего тулзов: {total}, категорий: {len}. Распределение: {cat1}: {cnt1}, {cat2}: {cnt2}, ...`
+- Добавлен метод `format_distribution_summary()` и свойство `last_distribution_summary` в `ToolCategorizer`.
+- Зарегистрирована CLI-команда `hermes laya` (`register_cli_command`), позволяющая вызывать `hermes laya recategorize` напрямую из шелла / gateway `shell.exec`.
+- Нативное отображение во всплывающем toast-уведомлении в Desktop (`notify`), в командах `/laya recategorize`, `/laya status` и при срабатывании `recategorize_now`.

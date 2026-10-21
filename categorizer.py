@@ -167,7 +167,40 @@ class ToolCategorizer:
         self._tools_signature = current_sig
 
         self._save_cache()
+        summary = self.format_distribution_summary(categorized)
+        self._last_distribution_summary = summary
+        self.logger.info("Инструменты разбиты по категориям: %s", summary)
         return categorized
+
+    def format_distribution_summary(
+        self, categories: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Format a short summary: total tools, all categories, and count per category."""
+        cats = categories if categories is not None else (self._in_memory_categories or {})
+        counts = {
+            cat_id: len(data.get("tools", []))
+            for cat_id, data in cats.items()
+            if data.get("tools")
+        }
+        total_tools = sum(counts.values())
+        if not counts:
+            return "Всего тулзов: 0, категорий: 0"
+
+        cat_breakdown = ", ".join(
+            f"{cat}: {cnt}"
+            for cat, cnt in sorted(counts.items(), key=lambda x: x[1], reverse=True)
+        )
+        return f"Всего тулзов: {total_tools}, категорий: {len(counts)}. Распределение: {cat_breakdown}"
+
+    @property
+    def last_distribution_summary(self) -> str:
+        """Return the most recent tool distribution summary."""
+        if hasattr(self, "_last_distribution_summary") and self._last_distribution_summary:
+            return self._last_distribution_summary
+        if self._in_memory_categories:
+            self._last_distribution_summary = self.format_distribution_summary(self._in_memory_categories)
+            return self._last_distribution_summary
+        return "Всего тулзов: 0, категорий: 0"
 
     def recategorize(self, tools: Optional[List[Any]] = None) -> Dict[str, Any]:
         """Force immediate re-categorization of tools and return a structured summary report."""
@@ -181,10 +214,19 @@ class ToolCategorizer:
             except Exception:
                 pass
 
+        if not target_tools and self._in_memory_categories:
+            cached_tools = []
+            for group in self._in_memory_categories.values():
+                for t in group.get("tools", []):
+                    cached_tools.append(t)
+            if cached_tools:
+                target_tools = cached_tools
+
         if not target_tools:
             return {
                 "status": "warning",
                 "message": "Нет доступных инструментов для разбивки",
+                "summary": "Всего тулзов: 0, категорий: 0",
                 "categories_count": 0,
                 "total_tools": 0,
                 "counts": {},
@@ -200,19 +242,14 @@ class ToolCategorizer:
             if data.get("tools")
         }
         total_categorized = sum(counts.values())
+        summary = self.format_distribution_summary(categories)
+        self._last_distribution_summary = summary
 
-        cat_breakdown = ", ".join(
-            f"{cat}: {cnt}" for cat, cnt in sorted(counts.items(), key=lambda x: x[1], reverse=True)
-        )
-        summary = (
-            f"Разбито {total_categorized} инструментов по {len(counts)} категориям "
-            f"за {elapsed_ms} мс ({cat_breakdown})"
-        )
-
-        self.logger.info("Recategorization completed: %s", summary)
+        self.logger.info("Recategorization completed: %s (latency: %s ms)", summary, elapsed_ms)
         return {
             "status": "ok",
             "message": summary,
+            "summary": summary,
             "total_tools": total_categorized,
             "categories_count": len(counts),
             "counts": counts,

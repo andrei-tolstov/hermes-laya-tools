@@ -128,6 +128,18 @@ def register(ctx: Any) -> None:
     except Exception as exc:
         logger.debug("Failed to register /laya command: %s", exc)
 
+    # Register CLI subcommand 'hermes laya'
+    if hasattr(ctx, "register_cli_command"):
+        try:
+            ctx.register_cli_command(
+                "laya",
+                help="Manage Laya Decision Engine (status, shadow, active, config, reload, recategorize)",
+                setup_fn=_setup_laya_cli,
+                handler_fn=_handle_laya_cli,
+            )
+        except Exception as exc:
+            logger.debug("Failed to register CLI command hermes laya: %s", exc)
+
     logger.info(
         "hermes-laya-tools plugin loaded (sidecar: %s, mode: %s, hierarchical: %s, max_tools: %d)",
         _config.sidecar_url,
@@ -135,6 +147,25 @@ def register(ctx: Any) -> None:
         _config.hierarchical,
         _config.max_tools,
     )
+
+
+def _setup_laya_cli(parser: Any) -> None:
+    """Setup CLI parser for `hermes laya`."""
+    parser.add_argument(
+        "subcommand",
+        nargs="?",
+        default="status",
+        choices=["status", "recategorize", "categorize", "shadow", "active", "config", "reload"],
+        help="Laya action: status | recategorize | shadow | active | config | reload",
+    )
+
+
+def _handle_laya_cli(args: Any) -> int:
+    """Execute `hermes laya <subcommand>`."""
+    cmd = getattr(args, "subcommand", "status")
+    output = _laya_command(cmd)
+    print(output)
+    return 0
 
 
 def _on_pre_llm_call(session_id: str = "", turn_id: str = "", **kwargs: Any) -> Optional[Dict[str, Any]]:
@@ -160,8 +191,9 @@ def _on_pre_llm_call(session_id: str = "", turn_id: str = "", **kwargs: Any) -> 
         try:
             _config.recategorize_now = False
             recat_res = _categorizer.recategorize(kwargs.get("tools") or _get_tools_fallback())
-            if _config.notify_in_chat:
-                return {"context": f"[Laya] ⚡ {recat_res.get('message', 'Recategorized')}"}
+            summary_msg = recat_res.get("summary") or recat_res.get("message", "done")
+            logger.info("Recategorize trigger executed: %s", summary_msg)
+            return {"context": f"⚡ [Laya] {summary_msg}"}
         except Exception as e:
             logger.warning("Failed to run recategorize_now: %s", e)
 
@@ -328,9 +360,11 @@ def _laya_command(raw_args: str = "") -> str:
         health = _client.health()
         status_str = "online (healthy)" if health else "unreachable"
         last_dec = _router.last_decision or {}
+        dist = _categorizer.last_distribution_summary if _categorizer else "none"
         return (
             f"Laya Engine: {status_str} ({_config.sidecar_url})\n"
             f"Mode: {_config.mode.upper()} {'(SHADOW: primary output untouched)' if _config.is_shadow else ''}\n"
+            f"Tool Distribution: {dist}\n"
             f"Enabled: {_config.enabled}\n"
             f"Kill Switch Active: {_config.is_killed}\n"
             f"Max Tools: {_config.max_tools}\n"
@@ -382,7 +416,8 @@ def _laya_command(raw_args: str = "") -> str:
         if _categorizer is None:
             return "Categorizer not initialized."
         res = _categorizer.recategorize()
-        return f"⚡ Laya Recategorize: {res.get('message', 'done')}"
+        summary = res.get("summary") or res.get("message", "done")
+        return f"⚡ Laya: {summary}"
 
     if cmd == "reload":
         if _CTX is not None:
