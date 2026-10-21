@@ -169,6 +169,57 @@ class ToolCategorizer:
         self._save_cache()
         return categorized
 
+    def recategorize(self, tools: Optional[List[Any]] = None) -> Dict[str, Any]:
+        """Force immediate re-categorization of tools and return a structured summary report."""
+        target_tools = tools or self._known_tools
+        if not target_tools:
+            try:
+                from agent import model_tools  # type: ignore[import-not-found]
+                defs = model_tools.get_tool_definitions()
+                if isinstance(defs, list):
+                    target_tools = defs
+            except Exception:
+                pass
+
+        if not target_tools:
+            return {
+                "status": "warning",
+                "message": "Нет доступных инструментов для разбивки",
+                "categories_count": 0,
+                "total_tools": 0,
+                "counts": {},
+            }
+
+        start_time = time.time()
+        categories = self.get_categories(target_tools, force_refresh=True)
+        elapsed_ms = round((time.time() - start_time) * 1000.0, 1)
+
+        counts = {
+            cat_id: len(data.get("tools", []))
+            for cat_id, data in categories.items()
+            if data.get("tools")
+        }
+        total_categorized = sum(counts.values())
+
+        cat_breakdown = ", ".join(
+            f"{cat}: {cnt}" for cat, cnt in sorted(counts.items(), key=lambda x: x[1], reverse=True)
+        )
+        summary = (
+            f"Разбито {total_categorized} инструментов по {len(counts)} категориям "
+            f"за {elapsed_ms} мс ({cat_breakdown})"
+        )
+
+        self.logger.info("Recategorization completed: %s", summary)
+        return {
+            "status": "ok",
+            "message": summary,
+            "total_tools": total_categorized,
+            "categories_count": len(counts),
+            "counts": counts,
+            "latency_ms": elapsed_ms,
+        }
+
+
     def _categorize_all(self, tools: List[Any]) -> Dict[str, Dict[str, Any]]:
         """Categorize all tools using pattern matching + Laya fallback."""
         groups: Dict[str, Dict[str, Any]] = {

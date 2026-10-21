@@ -164,3 +164,70 @@ def test_router_fallback_on_error(tmp_path):
     effective_shadow, dec_shadow = router_shadow.route_tools(tools, "USER: run command")
     assert dec_shadow["decision"] == "fallback"
     assert effective_shadow == tools
+
+
+def test_router_direct_chat_threshold_safety(tmp_path):
+    """Verify that weak confidence (e.g. 53% direct_chat, 0.002 conf from real logs) does NOT strip tools."""
+    mock_laya = MagicMock()
+    mock_laya.ask.return_value = {
+        "ok": True,
+        "latency_ms": 25.0,
+        "answers": {
+            "tool_decision": {
+                "choice": "direct_chat",
+                "confidence": 0.0027,
+                "probabilities": {"direct_chat": 0.5308, "execute_tools": 0.4692},
+            },
+            "category": {
+                "choice": "filesystem",
+                "probabilities": {"filesystem": 0.35, "terminal_execution": 0.30},
+            },
+        },
+    }
+
+    cfg = LayaConfig(
+        mode="active",
+        direct_chat_threshold=0.75,
+        min_confidence=0.15,
+        log_path=tmp_path / "safety.jsonl",
+    )
+    router = ToolRouter(mock_laya, cfg)
+    tools = _sample_tools()
+    # User prompt: "запусти вручную"
+    effective, dec = router.route_tools(tools, "USER: запусти вручную")
+
+    # Due to safety threshold, weak direct_chat is rejected; tools are preserved and routed to category!
+    assert dec["decision"] == "execute_tools"
+    assert dec["category"] == "filesystem"
+    assert len(effective) > 0
+
+
+def test_router_always_include(tmp_path):
+    """Verify that tools in always_include are always preserved."""
+    mock_laya = MagicMock()
+    mock_laya.ask.return_value = {
+        "ok": True,
+        "latency_ms": 30.0,
+        "answers": {
+            "tool_decision": {"choice": "execute_tools"},
+            "category": {
+                "choice": "filesystem",
+                "probabilities": {"filesystem": 0.90},
+            },
+        },
+    }
+
+    cfg = LayaConfig(
+        mode="active",
+        max_tools=2,
+        always_include={"web_search"},
+        log_path=tmp_path / "always.jsonl",
+    )
+    router = ToolRouter(mock_laya, cfg)
+    tools = _sample_tools()
+    effective, dec = router.route_tools(tools, "USER: read file")
+
+    names = [extract_tool_name(t) for t in effective]
+    assert "web_search" in names
+    assert len(effective) <= 2
+

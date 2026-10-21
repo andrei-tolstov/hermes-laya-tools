@@ -1,5 +1,5 @@
 name: hermes-laya-tools
-version: 0.1.0
+version: 0.1.1
 description: "Smart System 1 Tool Routing and Top-10 Selection powered by Laya Decision Engine, with Shadow Mode and Audit Logging."
 author: Andrei
 license: MIT
@@ -7,5 +7,80 @@ manifest_version: 2
 provides_hooks:
   - pre_llm_call
   - pre_api_request
+  - post_tool_call
   - on_session_end
 tags: [laya, tools, routing, system1, shadow-mode]
+config_schema:
+  enabled:
+    type: bool
+    default: true
+    label: "Включен"
+    description: "Включить интеллектуальную маршрутизацию инструментов через Laya Decision Engine"
+  mode:
+    type: str
+    choices: [active, shadow]
+    default: active
+    label: "Режим работы"
+    description: "active — фильтрация инструментов и передача Top-10; shadow — только фоновая оценка и аудит без изменения инструментов"
+  hierarchical:
+    type: bool
+    default: true
+    label: "Иерархическая маршрутизация"
+    description: "Двухуровневый выбор (категория -> релевантные инструменты) вместо плоского ранжирования"
+  max_tools:
+    type: int
+    default: 10
+    label: "Лимит инструментов (Top-K)"
+    description: "Максимальное количество инструментов, передаваемых в контекст модели"
+  timeout_ms:
+    type: int
+    default: 5000
+    label: "Таймаут Sidecar (мс)"
+    description: "Максимальное время ожидания ответа инференс-сервера Laya"
+  sidecar_url:
+    type: str
+    default: "http://127.0.0.1:8787"
+    label: "URL сервиса Laya"
+    description: "Адрес REST Sidecar инференс-сервера System 1 Decision Studio"
+  fallback_mode:
+    type: str
+    choices: [pass-all, strip-all]
+    default: pass-all
+    label: "Режим восстановления (Fallback)"
+    description: "Поведение при сбое Laya: pass-all (сохранить все инструменты) или strip-all (отключить)"
+  notify_in_chat:
+    type: bool
+    default: true
+    label: "Уведомления в чате"
+    description: "Показывать компактное сервисное сообщение о принятом решении Laya (только в active режиме)"
+  log_level:
+    type: str
+    choices: [DEBUG, INFO, WARNING, ERROR]
+    default: INFO
+    label: "Уровень логирования"
+    description: "Детализация записей в журнале аудита запросов"
+  always_include:
+    type: str
+    default: ""
+    label: "Всегда доступные инструменты"
+    description: "Список имен инструментов через запятую, которые никогда не отфильтровываются"
+  recategorize_now:
+    type: bool
+    default: false
+    label: "Переразбить категории сейчас"
+    description: "Принудительно запустить немедленную переразбивку всех доступных инструментов через Laya при сохранении настроек"
+  trivial_bypass:
+    type: bool
+    default: true
+    label: "Быстрый фильтр коротких фраз"
+    description: "Мгновенная локальная обработка простых подтверждений (ок, да, спасибо) без сетевых запросов к Laya"
+  cache_repeat_asks:
+    type: bool
+    default: true
+    label: "Кэшировать повторные инструкции"
+    description: "Сохранять в LRU-кэш решения для повторяющихся регулярных инструкций (cron, циклы)"
+  privacy_mode:
+    type: bool
+    default: true
+    label: "Защита конфиденциальности в логах"
+    description: "Маскировать токены, API-ключи, пароли и личные данные перед записью в журнал аудита"

@@ -68,3 +68,45 @@ def test_load_hermes_env_file(tmp_path, monkeypatch):
     cfg = LayaConfig.from_env(env_file)
     assert cfg.is_shadow is True
     assert cfg.max_tools == 7
+
+
+class FakePluginContext:
+    def __init__(self, settings: dict):
+        self._settings = settings
+
+    def get_config(self, key: str, default=None):
+        return self._settings.get(key, default)
+
+
+def test_config_from_ctx():
+    fake_ctx = FakePluginContext({
+        "mode": "shadow",
+        "max_tools": 8,
+        "sidecar_url": "http://hermes-ui-sidecar:8787",
+        "always_include": ["clarify", "delegate_task"],
+        "direct_chat_threshold": 0.80,
+    })
+    cfg = LayaConfig.from_ctx_or_env(ctx=fake_ctx)
+    assert cfg.mode == "shadow"
+    assert cfg.is_shadow is True
+    assert cfg.max_tools == 8
+    assert cfg.sidecar_url == "http://hermes-ui-sidecar:8787"
+    assert cfg.always_include == {"clarify", "delegate_task"}
+    assert cfg.direct_chat_threshold == 0.80
+
+
+def test_config_reload():
+    fake_ctx = FakePluginContext({"mode": "active", "max_tools": 10})
+    cfg = LayaConfig.from_ctx_or_env(ctx=fake_ctx)
+    assert cfg.mode == "active"
+    assert cfg.max_tools == 10
+
+    # Simulate user changing settings in Hermes UI
+    fake_ctx._settings["mode"] = "shadow"
+    fake_ctx._settings["max_tools"] = 3
+    cfg.reload(ctx=fake_ctx)
+
+    assert cfg.mode == "shadow"
+    assert cfg.is_shadow is True
+    assert cfg.max_tools == 3
+

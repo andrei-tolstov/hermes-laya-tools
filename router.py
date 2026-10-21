@@ -2,28 +2,33 @@
 
 Implements hierarchical two-level routing and Top-10 selection:
 1. Daily tool categorization (24h TTL).
-2. Level 1: Context gatekeeping (direct_chat vs execute_tools) and Category selection.
-   - If direct_chat: strips tools (tools = []).
-3. Level 2: Top-N tool ranking for the chosen category.
+2. Level 1: Context gatekeeping (execute_tools vs direct_chat) and Category selection.
+   - If confident direct_chat (probability >= threshold and confident): strips tools (tools = []).
+   - If uncertain or execute_tools: selects top tool categories and candidates.
+3. Level 2: Top-N tool ranking for the chosen category and always_include preservation.
 4. Shadow mode: performs full Laya query, response processing, and logging,
    but leaves the primary model toolset completely unchanged.
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 try:
     from .categorizer import ToolCategorizer, extract_tool_desc, extract_tool_name
     from .client import LayaClient
     from .config import LayaConfig
+    from .hygiene import looks_trivial, redact_sensitive, unwrap
     from .logger import LayaAuditLogger
 except ImportError:
     from categorizer import ToolCategorizer, extract_tool_desc, extract_tool_name
     from client import LayaClient
     from config import LayaConfig
+    from hygiene import looks_trivial, redact_sensitive, unwrap
     from logger import LayaAuditLogger
 
 logger = logging.getLogger("hermes.plugin.laya.router")
@@ -54,6 +59,7 @@ class ToolRouter:
         )
 
         self.last_decision: Optional[Dict[str, Any]] = None
+        self._decision_cache: "OrderedDict[str, Tuple[List[Any], Dict[str, Any]]]" = OrderedDict()
 
     def route_tools(
         self,
@@ -74,9 +80,9 @@ class ToolRouter:
             Tuple of (effective_tools, decision_info).
             In shadow mode, effective_tools is always the original tools list.
         """
-        if not self.config.enabled or not tools:
+        if not self.config.enabled or self.config.is_killed or not tools:
             decision = {
-                "decision": "disabled" if not self.config.enabled else "no_tools",
+                "decision": "killed" if self.config.is_killed else ("disabled" if not self.config.enabled else "no_tools"),
                 "category": None,
                 "probability": 1.0,
                 "selected_tools": [extract_tool_name(t) for t in tools],
@@ -97,6 +103,42 @@ class ToolRouter:
             self.last_decision = decision
             return tools, decision
 
+        # 1. Fast Ack / Trivial Bypass (<1ms, zero network calls to Laya)
+        if self.config.trivial_bypass and looks_trivial(state_text):
+            logger.debug("Fast trivial bypass triggered for: %s", state_text[:50])
+            decision = {
+                "decision": "direct_chat",
+                "category": None,
+                "probability": 1.0,
+                "selected_tools": [],
+                "shadow": self.config.is_shadow,
+                "trivial_bypass": True,
+                "latency_ms": 0.1,
+            }
+            if self.config.is_shadow:
+                decision["simulated_selected_tools"] = []
+                self.last_decision = decision
+                return tools, decision
+
+            self.last_decision = decision
+            return [], decision
+
+        # 2. Repeat-Ask LRU Cache
+        cache_key = None
+        if self.config.cache_repeat_asks:
+            tools_sig = ",".join(sorted(extract_tool_name(t) for t in tools))
+            cache_key = hashlib.sha256(f"{state_text}:{tools_sig}:{self.config.mode}".encode("utf-8")).hexdigest()
+            if cache_key in self._decision_cache:
+                cached_tools, cached_dec = self._decision_cache[cache_key]
+                self._decision_cache.move_to_end(cache_key)
+                dec_copy = dict(cached_dec)
+                dec_copy["cached"] = True
+                dec_copy["latency_ms"] = 0.0
+                self.last_decision = dec_copy
+                logger.debug("Reusing cached routing decision for key %s", cache_key[:8])
+                effective = tools if self.config.is_shadow else cached_tools
+                return effective, dec_copy
+
         start_time = time.time()
         try:
             if self.config.hierarchical:
@@ -114,6 +156,13 @@ class ToolRouter:
                     turn_id=turn_id,
                 )
 
+            # Store in repeat-ask cache
+            if cache_key and self.config.cache_repeat_asks and decision.get("decision") in ("execute_tools", "direct_chat"):
+                self._decision_cache[cache_key] = (selected_tools, decision)
+                self._decision_cache.move_to_end(cache_key)
+                while len(self._decision_cache) > self.config.cache_size:
+                    self._decision_cache.popitem(last=False)
+
             # In shadow mode, the primary model tool surface MUST NOT BE CHANGED.
             if self.config.is_shadow:
                 decision["simulated_selected_tools"] = [extract_tool_name(t) for t in selected_tools]
@@ -122,6 +171,7 @@ class ToolRouter:
 
             self.last_decision = decision
             return selected_tools, decision
+
 
         except Exception as exc:
             elapsed_ms = (time.time() - start_time) * 1000.0
@@ -154,7 +204,7 @@ class ToolRouter:
                 decision="fallback",
                 selected_tools=[extract_tool_name(t) for t in fallback_tools],
                 all_available_tools=[extract_tool_name(t) for t in tools],
-                state_snippet=state_text,
+                state_snippet=self._safe_state_snippet(state_text),
                 latency_ms=elapsed_ms,
                 error=error_msg,
             )
@@ -193,13 +243,14 @@ class ToolRouter:
 
         category_criteria = {cat["id"]: cat["description"] for cat in active_categories}
 
+        # Mitigating position bias: formulate balanced questions with clear descriptions
         level1_questions = {
             "tool_decision": {
                 "type": "choice",
-                "instructions": "Does this user input require executing tools/commands, or is it a direct conversational reply?",
+                "instructions": "Determine whether this request requires tool/command execution or is a pure conversational response.",
                 "criteria": {
-                    "direct_chat": "Direct conversational chat, greeting, text explanation, answering general knowledge without any tools",
-                    "execute_tools": "Requires executing tools, commands, reading files, searching web, or external actions",
+                    "execute_tools": "Requires executing tools, running terminal commands, reading or editing files, searching web, or external actions",
+                    "direct_chat": "Pure conversational chat, greeting, text explanation, or answering general knowledge without any tools",
                 },
             },
             "category": {
@@ -219,17 +270,39 @@ class ToolRouter:
         cat_probs = category_ans.get("probabilities", {})
         latency_ms = level1_resp.get("latency_ms")
 
-        # Check for direct chat
-        if (
-            decision_choice == "direct_chat"
-            or cat_choice == NONE_CATEGORY_ID
-            or decision_choice == NONE_CATEGORY_ID
-        ):
-            direct_prob = (
-                tool_decision_ans.get("probabilities", {}).get("direct_chat")
-                or tool_decision_ans.get("confidence")
-                or 0.95
-            )
+        tool_probs = tool_decision_ans.get("probabilities", {})
+        if "direct_chat" in tool_probs:
+            direct_prob = float(tool_probs.get("direct_chat", 0.0))
+        elif decision_choice == "direct_chat":
+            direct_prob = float(tool_decision_ans.get("confidence") or 0.95)
+        else:
+            direct_prob = 0.0
+
+        if "execute_tools" in tool_probs:
+            exec_prob = float(tool_probs.get("execute_tools", 0.0))
+        elif decision_choice == "execute_tools":
+            exec_prob = float(tool_decision_ans.get("confidence") or 0.95)
+        else:
+            exec_prob = 0.0
+
+        raw_conf = tool_decision_ans.get("confidence")
+        if raw_conf is not None:
+            tool_conf = float(raw_conf)
+        elif tool_probs:
+            tool_conf = max(0.0, direct_prob - exec_prob)
+        else:
+            tool_conf = 0.90
+
+        # Check for direct chat with safety threshold.
+        # Only strip tools if Laya is decisively confident (threshold >= 0.75, conf >= min_confidence).
+        # In an agent environment, weak confidence must NEVER strip tools.
+        is_confident_direct = (
+            (decision_choice == "direct_chat" or decision_choice == NONE_CATEGORY_ID)
+            and direct_prob >= self.config.direct_chat_threshold
+            and tool_conf >= self.config.min_confidence
+        )
+
+        if is_confident_direct:
             decision = {
                 "decision": "direct_chat",
                 "category": None,
@@ -249,14 +322,14 @@ class ToolRouter:
                 probability=float(direct_prob),
                 selected_tools=[],
                 all_available_tools=[extract_tool_name(t) for t in tools],
-                state_snippet=state_text,
+                state_snippet=self._safe_state_snippet(state_text),
                 questions=level1_questions,
                 raw_answers=answers,
                 latency_ms=latency_ms,
             )
             return [], decision
 
-        # Tool category won
+        # Tool category selection
         sorted_categories = sorted(
             active_categories,
             key=lambda c: cat_probs.get(c["id"], 0.0),
@@ -282,6 +355,14 @@ class ToolRouter:
                     if len(candidate_pool) >= self.config.max_tools:
                         break
 
+        # Always inject tools from config.always_include into candidate pool
+        if self.config.always_include:
+            for t in tools:
+                t_name = extract_tool_name(t)
+                if t_name in self.config.always_include and t_name not in seen_names:
+                    candidate_pool.insert(0, t)
+                    seen_names.add(t_name)
+
         # Level 2: If pool <= max_tools, no extra ranking needed
         if len(candidate_pool) <= self.config.max_tools:
             selected_names = [extract_tool_name(t) for t in candidate_pool]
@@ -303,7 +384,7 @@ class ToolRouter:
                 probability=cat_prob,
                 selected_tools=selected_names,
                 all_available_tools=[extract_tool_name(t) for t in tools],
-                state_snippet=state_text,
+                state_snippet=self._safe_state_snippet(state_text),
                 questions=level1_questions,
                 raw_answers=answers,
                 latency_ms=latency_ms,
@@ -333,7 +414,7 @@ class ToolRouter:
             probability=cat_prob,
             selected_tools=selected_names,
             all_available_tools=[extract_tool_name(t) for t in tools],
-            state_snippet=state_text,
+            state_snippet=self._safe_state_snippet(state_text),
             questions=level1_questions,
             raw_answers=answers,
             latency_ms=latency_ms,
@@ -367,7 +448,7 @@ class ToolRouter:
             probability=1.0,
             selected_tools=selected_names,
             all_available_tools=[extract_tool_name(t) for t in tools],
-            state_snippet=state_text,
+            state_snippet=self._safe_state_snippet(state_text),
         )
         return top_tools, decision
 
@@ -439,8 +520,8 @@ class ToolRouter:
             return ""
 
         if isinstance(context, str):
-            trimmed = context.strip()
-            return trimmed if trimmed.startswith(("USER:", "SYSTEM:", "ASSISTANT:")) else f"USER: {trimmed}"
+            clean = self._clean_text(context.strip())
+            return clean if clean.startswith(("USER:", "SYSTEM:", "ASSISTANT:")) else f"USER: {clean}"
 
         if isinstance(context, list):
             return self._format_messages(context)
@@ -448,7 +529,7 @@ class ToolRouter:
         # Hermes TurnContext or dict with messages/user_message
         if isinstance(context, dict):
             if "user_message" in context and isinstance(context["user_message"], str):
-                msg = context["user_message"].strip()
+                msg = self._clean_text(context["user_message"].strip())
                 if msg:
                     return f"USER: {msg}"
             if "messages" in context and isinstance(context["messages"], list):
@@ -463,6 +544,26 @@ class ToolRouter:
                 return self._format_messages(session.derive_messages())
 
         return ""
+
+    def _safe_state_snippet(self, state_text: str) -> str:
+        """Sanitize state text before saving to audit log if privacy mode is enabled."""
+        if self.config.privacy_mode:
+            return redact_sensitive(state_text)
+        return state_text
+
+    def _clean_text(self, text: str) -> str:
+        """Strip plan mode boilerplate, unwrap markdown envelopes, and clean query."""
+        if not text:
+            return ""
+        text = unwrap(text.strip())
+        if text.startswith("[/plan"):
+            parts = text.split("\n\n")
+            for p in reversed(parts):
+                p_clean = p.strip()
+                if p_clean and not p_clean.startswith(("-", "*", "[/plan")):
+                    return p_clean
+        return text
+
 
     def _format_messages(self, messages: List[Any]) -> str:
         if not messages:
@@ -482,13 +583,14 @@ class ToolRouter:
                     content = " ".join(text_parts)
                 elif not isinstance(content, str):
                     content = str(content)
-                text = content.strip()
+                text = self._clean_text(content.strip())
                 if text:
                     lines.append(f"{role}: {text[:500]}")
             elif hasattr(msg, "role") and hasattr(msg, "content"):
                 role = str(getattr(msg, "role", "user")).upper()
                 content = str(getattr(msg, "content", "")).strip()
-                if content:
-                    lines.append(f"{role}: {content[:500]}")
+                text = self._clean_text(content)
+                if text:
+                    lines.append(f"{role}: {text[:500]}")
 
         return "\n".join(lines)
