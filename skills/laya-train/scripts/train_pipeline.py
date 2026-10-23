@@ -2,16 +2,16 @@
 """train_pipeline.py — Оркестратор замкнутого цикла обучения и оценки Laya.
 
 Полный конвейер:
-1. Подготовка / валидация обучающих данных (`train.jsonl` и `eval.jsonl`).
-2. Пре-тест точности текущей модели на валидационном наборе (Baseline Evaluation).
-3. Запуск дообучения (`laya-train`) и компиляция GGUF-модели (`compile_custom_laya.py`).
-4. Горячая перезагрузка весов в инференс-сервере Laya (`POST /reload`).
-5. Пост-тест точности новой модели на том же валидационном наборе (Post Evaluation).
-6. Генерация сводного аналитического отчёта со сравнением метрик (`report.md` и `report.json`).
+1. Автоматическая проверка плагина `kerpopule/hermes-jev-skills` (`hermes-jev`) в Hermes.
+2. Подготовка / валидация обучающих данных (`train.jsonl` и `eval.jsonl`) с обогащением из Jev-логов и сессий Hermes.
+3. Пре-тест точности текущей модели на валидационном наборе (Baseline Evaluation).
+4. Запуск дообучения (`laya-train`) и компиляция GGUF-модели (`compile_custom_laya.py`).
+5. Горячая перезагрузка весов в инференс-сервере Laya (`POST /reload`).
+6. Пост-тест точности новой модели на том же валидационном наборе (Post Evaluation).
+7. Генерация сводного аналитического отчёта со сравнением метрик (`report.md` и `report.json`).
 
 Все результаты и артефакты сохраняются в каталог скилла: `skills/laya-train/data/`.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -37,6 +37,7 @@ sys.path.insert(0, str(scripts_dir))
 
 try:
     from evaluate_accuracy import evaluate
+    from jev_detector import detect_jev_plugin
 except ImportError:
     pass
 
@@ -90,6 +91,7 @@ def generate_markdown_report(
     before_report: Dict[str, Any],
     after_report: Dict[str, Any],
     train_metadata: Dict[str, Any],
+    jev_info: Dict[str, Any],
     out_md: Path,
 ) -> str:
     """Сформировать подробный Markdown-отчет о работе скила и дельтах метрик."""
@@ -143,6 +145,21 @@ def generate_markdown_report(
 
     disc_table = "\n".join(disc_rows) if disc_rows else "Все тестовые кейсы классифицированы безошибочно! 🎉"
 
+    # Таблица калибровки Confidence Floor (по стандарту Jev)
+    sweep_rows = []
+    for row in a_met.get("calibration_sweep", []):
+        fl = row["floor"]
+        r = row["right"]
+        w = row["wrong_actions"]
+        s = row["stalled"]
+        mark = " 🎯 (Recommended)" if fl == a_met.get("recommended_confidence_floor") else ""
+        sweep_rows.append(f"| {fl:.2f} | {r} | **{w}** | {s} |{mark}")
+    sweep_table = "\n".join(sweep_rows) if sweep_rows else "| — | — | — | — |"
+
+    # Секция Jev
+    jev_status_str = "Обнаружен и активен (Enabled)" if jev_info.get("is_enabled") else ("Обнаружен (Disabled)" if jev_info.get("is_detected") else "Не обнаружен")
+    jev_logs_str = ", ".join([f"{k}: {v} записей" for k, v in jev_info.get("log_counts", {}).items()]) or "Логи не обнаружены"
+
     md_content = f"""# Отчёт о работе скила обучения и калибровки Laya (`laya-train`)
 
 - **Дата выполнения**: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}
@@ -174,15 +191,32 @@ def generate_markdown_report(
 
 ---
 
-## 3. Анализ оставшихся расхождений (Discrepancies)
+## 3. Интеграция с плагином kerpopule/hermes-jev-skills
 
+- **Статус плагина**: **{jev_status_str}**
+- **Директория плагина**: `{jev_info.get('plugin_dir') or '—'}`
+- **Телеметрия Jev**: {jev_logs_str}
+- **Калибровка порога уверенности (Confidence Floor Sweep по стандарту Jev)**:
+
+| Порог (Floor) | Верные решения (Right) | Ошибочные действия (Wrong Actions) | Воздержания (Stalled) | Примечание |
+|:---:|:---:|:---:|:---:|:---|
+{sweep_table}
+
+- **Рекомендуемый порог (Confidence Floor)**: **{a_met.get('recommended_confidence_floor', 0.60):.2f}** (минимизирует опасные ложные срабатывания при быстром Fast Lane инференсе).
+
+---
+
+## 4. Анализ оставшихся расхождений (Discrepancies)
+
+| Запрос пользователя | Ожидалось (Ground Truth) | Предсказано Laya |
+|:---|:---|:---|
 {disc_table}
 
 ---
 
-## 4. Итоговое заключение скила
+## 5. Итоговое заключение скила
 
-- Модель успешно прошла валидацию на тестовом срезе.
+- Модель успешно прошла цикл валидации и дообучения.
 - Итоговая комбинированная точность: **{a_strict*100:.1f}%**.
 - Калибровочный показатель Brier: **{a_brier:.4f}**.
 - Рекомендация: **{'Рекомендуется к использованию в проде' if a_strict >= b_strict else 'Требуется дополнительная фильтрация датасета'}**.
@@ -208,9 +242,20 @@ def run_pipeline(args: argparse.Namespace) -> None:
     print(f"URL Laya             : {args.laya_url}")
     print(f"Режим обучения       : {'DRY-RUN / Simulation' if args.dry_run else 'Full Training'}\n")
 
+    # ШАГ 0: Проверка наличия плагина kerpopule/hermes-jev-skills
+    hermes_home = Path(args.db_path).parent if args.db_path else None
+    jev_info = detect_jev_plugin(hermes_home)
+    print(f"[+] Проверка плагина kerpopule/hermes-jev-skills:")
+    print(f"    • Обнаружен: {'ДА' if jev_info['is_detected'] else 'НЕТ'}")
+    print(f"    • Статус: {'ВКЛЮЧЕН (ENABLED)' if jev_info['is_enabled'] else 'ВЫКЛЮЧЕН / НЕ УСТАНОВЛЕН'}")
+    if jev_info["is_detected"]:
+        print(f"    • Путь к плагину: {jev_info.get('plugin_dir')}")
+        for k, v in jev_info.get("log_counts", {}).items():
+            print(f"    • Лог {k}: {v} записей")
+
     # ШАГ 1: Извлечение и разметка данных (при необходимости)
     if args.extract or not train_file.is_file() or not eval_file.is_file():
-        print(">>> ШАГ 1: Извлечение и разметка данных с привлечением Primary Model...")
+        print("\n>>> ШАГ 1: Извлечение и разметка данных с привлечением Primary Model и логов Jev...")
         extract_script = scripts_dir / "extract_and_label.py"
         extract_cmd = [
             sys.executable,
@@ -301,11 +346,13 @@ def run_pipeline(args: argparse.Namespace) -> None:
         "loss": args.loss,
         "epochs": args.epochs,
         "dry_run": args.dry_run,
+        "jev_integrated": jev_info.get("is_detected", False),
     }
 
     full_report = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "train_metadata": train_metadata,
+        "jev_integration": jev_info,
         "before": before_report,
         "after": after_report,
         "delta": {
@@ -319,7 +366,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
     with open(report_json_file, "w", encoding="utf-8") as f:
         json.dump(full_report, f, indent=2, ensure_ascii=False)
 
-    md_report_text = generate_markdown_report(before_report, after_report, train_metadata, report_md_file)
+    md_report_text = generate_markdown_report(before_report, after_report, train_metadata, jev_info, report_md_file)
     print(f"\n[✓] Конвейер успешно завершён!")
     print(f"    - JSON-отчет: {report_json_file}")
     print(f"    - Markdown-отчет: {report_md_file}\n")

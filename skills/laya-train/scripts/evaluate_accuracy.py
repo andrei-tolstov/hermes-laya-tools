@@ -104,6 +104,37 @@ def calculate_metrics(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     mean_brier = sum(brier_scores) / len(brier_scores) if brier_scores else 0.0
     mean_conf = sum(confidences) / len(confidences) if confidences else 0.0
 
+    # Калибровка порога уверенности (Confidence Floor Sweep) по стандарту kerpopule/hermes-jev-skills
+    floors = [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90]
+    calibration_sweep = []
+    best_floor = 0.60
+    min_wrong = 999999
+
+    for fl in floors:
+        r_right = 0
+        r_wrong = 0
+        r_stalled = 0
+        for r in results:
+            conf_val = r.get("predicted_td_conf", 0.5)
+            is_match = r.get("strict_match", False)
+            if conf_val >= fl:
+                if is_match:
+                    r_right += 1
+                else:
+                    r_wrong += 1
+            else:
+                r_stalled += 1
+
+        calibration_sweep.append({
+            "floor": fl,
+            "right": r_right,
+            "wrong_actions": r_wrong,
+            "stalled": r_stalled,
+        })
+        if r_wrong < min_wrong or (r_wrong == min_wrong and r_right > 0):
+            min_wrong = r_wrong
+            best_floor = fl
+
     # По категорийный срез
     category_stats: Dict[str, Dict[str, int]] = {}
     for r in results:
@@ -135,6 +166,8 @@ def calculate_metrics(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         "combined_matches": combined_matches,
         "mean_confidence": round(mean_conf, 4),
         "brier_score": round(mean_brier, 4),
+        "calibration_sweep": calibration_sweep,
+        "recommended_confidence_floor": best_floor,
         "categories": cat_breakdown,
     }
 

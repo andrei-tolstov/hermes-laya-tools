@@ -2,18 +2,19 @@
 name: laya-train
 description: >-
   Use this skill to extract training data from Hermes sessions and plugin logs,
+  detect kerpopule/hermes-jev-skills plugin and incorporate Jev decision logs,
   label ground truth using the primary model as Teacher, evaluate Laya accuracy
   before and after fine-tuning, run the training pipeline, and generate comparative reports.
-version: 1.0.0
+version: 1.1.0
 license: MIT
 metadata:
   hermes:
-    tags: [laya, system1, fine-tuning, distillation, evaluation, router, benchmark]
+    tags: [laya, system1, fine-tuning, distillation, evaluation, router, benchmark, jev]
 ---
 
 # Laya Training & Calibration Skill (`laya-train`)
 
-Скилл предназначен для полного цикла дистилляции, дообучения и калибровки движка быстрых решений **Laya System 1 Decision Engine**. Все данные, скрипты и отчеты инкапсулированы внутри директории скилла: `skills/laya-train/`.
+Скилл предназначен для полного цикла дистилляции, дообучения и калибровки движка быстрых решений **Laya System 1 Decision Engine** с поддержкой плагина **`kerpopule/hermes-jev-skills`** (`hermes-jev`). Все данные, скрипты и отчеты инкапсулированы внутри директории скилла: `skills/laya-train/`.
 
 ---
 
@@ -21,13 +22,14 @@ metadata:
 
 ```text
 skills/laya-train/
-├── SKILL.md                 # Данное руководство
+├── SKILL.md                 # Данное руководство (Runbook)
 ├── scripts/                 # Исполняемые скрипты автоматизации
-│   ├── extract_and_label.py # Сбор сессий, эвристика и запрос к основной модели
-│   ├── evaluate_accuracy.py # Замер метрик точности (Accuracy, Brier, Confidence)
+│   ├── jev_detector.py      # Проверка статуса плагина kerpopule/hermes-jev-skills и логов
+│   ├── extract_and_label.py # Сбор сессий, Jev-логов, эвристика и запрос к основной модели
+│   ├── evaluate_accuracy.py # Замер точности (Accuracy, Brier, Confidence Floor Sweep)
 │   └── train_pipeline.py    # Полный замкнутый оркестратор цикла обучения
 ├── data/                    # Датасеты и аналитические отчеты
-│   ├── train.jsonl          # Обучающая выборка
+│   ├── train.jsonl          # Обучающая выборка (Hermes + Laya + Jev)
 │   ├── eval.jsonl           # Валидационная выборка
 │   ├── eval_before.json     # Результаты теста до обучения
 │   ├── eval_after.json      # Результаты теста после обучения
@@ -35,6 +37,7 @@ skills/laya-train/
 │   └── report.md            # Сводный аналитический отчет в Markdown
 ├── references/              # Справочные материалы и архитектурные руководства
 │   ├── best_practices.md    # Лучшие практики создания агентных скилов
+│   ├── jev_integration.md   # Интеграция с kerpopule/hermes-jev-skills и калибровка
 │   ├── laya_architecture.md # Архитектура System 1 и спецификация категорий
 │   └── training_guide.md    # Гиперпараметры, функции потерь и компиляция GGUF
 └── examples/                # Образцы валидированных сэмплов (.jsonl)
@@ -46,10 +49,17 @@ skills/laya-train/
 
 ## Быстрый запуск полного цикла (One-Command)
 
-Запуск всего конвейера одной командой (с автоматическим пре-тестом, дообучением, компиляцией GGUF, горячей перезагрузкой и пост-тестом):
+Запуск всего конвейера одной командой:
+1. Проверка наличия плагина `kerpopule/hermes-jev-skills` (`hermes-jev`) и обнаружение его логов;
+2. Извлечение сессий Hermes и логов Laya / Jev с fallback-запросами к Primary Model Teacher;
+3. Пре-тест точности текущей модели на валидационном наборе;
+4. Запуск дообучения / калибровки весов Laya и компиляция GGUF;
+5. Горячая перезагрузка весов (`POST /reload`);
+6. Пост-тест точности новой модели и калибровка Confidence Floor;
+7. Генерация сводного отчёта со срезом по Jev (`report.md` и `report.json`).
 
 ```bash
-# Автономный прогон полного конвейера:
+# Автономный прогон полного конвейера с автоматической проверкой Jev:
 python scripts/train_pipeline.py --extract
 
 # Быстрый контрольный запуск (с верификацией live-инференса без GPU-переобучения):
@@ -60,26 +70,30 @@ python scripts/train_pipeline.py --dry-run
 
 ## Пошаговый рабочий процесс (Step-by-Step Runbook)
 
-### Шаг 1: Извлечение и экспертная разметка данных
-Скрипт анализирует обращения из `laya_requests.jsonl` и сессии из `state.db`:
-- Если ход содержал фактический запуск инструмента (`read_file`, `terminal`, `mcp__marketplace__ozon_search`, `computer_use`), инструмент принимается за эталон.
-- **Разметка с привлечением основной модели**: если в сессии не было вызова инструмента или ситуация неоднозначна, скрипт автоматически направляет запрос к **основной модели Hermes** (`Primary LLM Teacher`) для определения эталонного решения (`execute_tools` vs `direct_chat`) и целевой категории.
+### Шаг 1: Проверка плагина `kerpopule/hermes-jev-skills`
+Проверка регистрации плагина в Hermes, статуса `enabled` и наличия логов решений:
+```bash
+python scripts/jev_detector.py
+```
 
+### Шаг 2: Извлечение и экспертная разметка данных
+Скрипт объединяет данные из трёх источников:
+- Аудит-логи Laya: `~/.hermes/logs/laya_requests.jsonl`;
+- Сессии и действия диалогов: `~/.hermes/state.db`;
+- Логи решений и теневых прогонов Jev: `~/.hermes/logs/jev-decisions.jsonl`, `jev-shadow.jsonl`.
+
+**Запрос к основной модели (Teacher LLM)**:
+Если в сессии или логах Jev отсутствует однозначный выбор или есть расхождение, скрипт автоматически обращается к **основной модели Hermes** (`Primary LLM Teacher`) для определения эталона:
 ```bash
 python scripts/extract_and_label.py \
   --logs-path ~/.hermes/logs/laya_requests.jsonl \
   --db-path ~/.hermes/state.db \
+  --check-jev \
   --out-dir data/
 ```
 
-### Шаг 2: Тестирование точности до обучения (Pre-Training Test)
+### Шаг 3: Тестирование точности до обучения (Pre-Training Test)
 Замер базовых метрик текущей рабочей модели на валидационной выборке:
-- **Tool Decision Accuracy** (разделение инструментов и диалога).
-- **Category Accuracy** (точность выбора семантической категории).
-- **Combined Strict Accuracy** (совместное совпадение решения и категории).
-- **Brier Score** (показатель калибровки вероятностей, ниже — лучше).
-- **Mean Confidence** (средняя уверенность классификатора).
-
 ```bash
 python scripts/evaluate_accuracy.py \
   --eval-data data/eval.jsonl \
@@ -87,9 +101,8 @@ python scripts/evaluate_accuracy.py \
   --laya-url http://127.0.0.1:8787
 ```
 
-### Шаг 3: Дообучение модели (Fine-Tuning / RLCD)
-Обучение чекпоинта на собранных данных:
-
+### Шаг 4: Дообучение модели (Fine-Tuning / RLCD)
+Обучение чекпоинта на объединенных данных:
 ```bash
 /root/.unsloth/studio/unsloth_studio/bin/laya-train \
   --data data/train.jsonl \
@@ -100,19 +113,14 @@ python scripts/evaluate_accuracy.py \
   --epochs 4
 ```
 
-### Шаг 4: Компиляция GGUF и горячая перезагрузка
-1. Компиляция весов в квантованный GGUF через `ggmlc`:
-   ```bash
-   python3 /root/deepseek-harness/compile_custom_laya.py
-   ```
-2. Отправка сигнала на горячую перезагрузку весов без простоя:
-   ```bash
-   curl -X POST http://127.0.0.1:8787/reload
-   ```
+### Шаг 5: Компиляция GGUF и горячая перезагрузка
+```bash
+python /root/deepseek-harness/compile_custom_laya.py
+curl -X POST http://127.0.0.1:8787/reload
+```
 
-### Шаг 5: Тестирование точности после обучения (Post-Training Test)
-Повторный запуск замера на том же валидационном наборе `eval.jsonl`:
-
+### Шаг 6: Пост-тест точности и калибровка Confidence Floor
+Замер метрик точности после обучения и подбор оптимального порога уверенности (Confidence Floor) по стандарту `calibrate_choose` из `hermes-jev-skills` (минимизация ошибочных действий `Wrong Actions` при контроле доли отказов `Stalls`):
 ```bash
 python scripts/evaluate_accuracy.py \
   --eval-data data/eval.jsonl \
@@ -120,15 +128,13 @@ python scripts/evaluate_accuracy.py \
   --laya-url http://127.0.0.1:8787
 ```
 
-### Шаг 6: Формирование сравнительного отчета
-Скрипт автоматически сравнивает метрики `eval_before.json` и `eval_after.json` и формирует отчеты:
-- `data/report.md`: Наглядная сводка с таблицей дельт ($\Delta$), по категорийной разбивкой и списком исправленных расхождений.
-- `data/report.json`: Полная машиночитаемая структура для дашбордов и CI/CD.
-
 ---
 
-## Ссылки на справочные материалы
+## Формат итогового отчета (`data/report.md`)
 
-- [Лучшие практики создания скилов](file:///c:/Users/andrei/projects/hermes-laya-tools/skills/laya-train/references/best_practices.md)
-- [Архитектура Laya System 1 и категории](file:///c:/Users/andrei/projects/hermes-laya-tools/skills/laya-train/references/laya_architecture.md)
-- [Руководство по гиперпараметрам и компиляции](file:///c:/Users/andrei/projects/hermes-laya-tools/skills/laya-train/references/training_guide.md)
+Сформированный отчет включает:
+1. **Сводную таблицу метрик**: точность решений, точность категорий, Combined Strict Accuracy, Brier score, задержка инференса;
+2. **Срез по категориям инструментов**: детальный анализ точности в разрезе Marketplace, Shell, Desktop, Filesystem и др.;
+3. **Интеграцию с плагином `kerpopule/hermes-jev-skills`**: статус детекции, объемы логов и таблица калибровки Confidence Floor Sweep;
+4. **Анализ оставшихся расхождений (Discrepancies)** с указанием точных запросов и предсказаний;
+5. **Итоговое заключение и рекомендацию** к использованию в production.
