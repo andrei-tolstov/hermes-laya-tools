@@ -6,7 +6,8 @@
 - Общая точность (Accuracy) по `tool_decision` и `category`
 - Совместная точность (Combined Strict Accuracy)
 - Brier Score (мера калибровки вероятностей)
-- Средняя уверенность (Mean Confidence)
+- Средняя вероятностная уверенность (Mean Answer Confidence = max(p))
+- Калибровка порога уверенности (Confidence Floor Sweep: Right / Wrong Actions / Stalled)
 - По категорийный срез точности
 - Список расхождений (discrepancies) для анализа ошибок
 
@@ -17,13 +18,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -39,50 +39,32 @@ def query_laya(
 ) -> Optional[Dict[str, Any]]:
     """Отправляет запрос в Laya (поддерживает как Sidecar /ask, так и C++ /v1/systemone)."""
     base = laya_url.rstrip("/")
-
-    # Попытка 1: /ask (Laya Sidecar)
-    ask_url = f"{base}/ask"
     payload = {"state": state, "questions": questions}
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
-    req = urllib.request.Request(
-        ask_url,
-        data=body,
-        headers={"Content-Type": "application/json; charset=utf-8"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            if "answers" in data:
-                return data
-    except Exception:
-        pass
-
-    # Попытка 2: /v1/systemone (Laya C++ Native REST)
-    systemone_url = f"{base}/v1/systemone"
-    req_sys = urllib.request.Request(
-        systemone_url,
-        data=body,
-        headers={"Content-Type": "application/json; charset=utf-8"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req_sys, timeout=timeout_sec) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            if "answers" in data:
-                return data
-    except Exception:
-        pass
+    for endpoint in (f"{base}/ask", f"{base}/v1/systemone"):
+        req = urllib.request.Request(
+            endpoint,
+            data=body,
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if "answers" in data:
+                    return data
+        except Exception:
+            continue
 
     return None
 
 
 def calculate_metrics(results: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Рассчитать Accuracy, Brier score, Mean Confidence и по категорийный срез."""
+    """Рассчитать Accuracy, Brier score, Mean Answer Confidence и Confidence Floor Sweep."""
     total = len(results)
     if total == 0:
-        return {"total": 0, "accuracy": 0.0}
+        return {"total_cases": 0, "tool_decision_accuracy": 0.0}
 
     td_matches = sum(1 for r in results if r["tool_decision_match"])
     cat_eval_count = sum(1 for r in results if r["expected_decision"] == "execute_tools")
@@ -90,33 +72,34 @@ def calculate_metrics(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     combined_matches = sum(1 for r in results if r["strict_match"])
 
     # Brier score для бинарного tool_decision: mean((prob - y)^2)
-    brier_scores = []
-    confidences = []
+    brier_scores: List[float] = []
+    confidences: List[float] = []
 
     for r in results:
-        prob = r.get("predicted_td_prob", 0.5)
+        prob = float(r.get("predicted_td_prob", 0.5))
         y = 1.0 if r["expected_decision"] == "execute_tools" else 0.0
         brier_scores.append((prob - y) ** 2)
         conf = r.get("predicted_td_conf")
         if conf is not None:
-            confidences.append(conf)
+            confidences.append(float(conf))
 
     mean_brier = sum(brier_scores) / len(brier_scores) if brier_scores else 0.0
     mean_conf = sum(confidences) / len(confidences) if confidences else 0.0
 
     # Калибровка порога уверенности (Confidence Floor Sweep) по стандарту kerpopule/hermes-jev-skills
+    # Использует вероятностную массу выбранного ответа max(p) (answer_confidence)
     floors = [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90]
     calibration_sweep = []
     best_floor = 0.60
-    min_wrong = 999999
+    best_utility = -999999.0
 
     for fl in floors:
         r_right = 0
         r_wrong = 0
         r_stalled = 0
         for r in results:
-            conf_val = r.get("predicted_td_conf", 0.5)
-            is_match = r.get("strict_match", False)
+            conf_val = float(r.get("combined_conf", r.get("predicted_td_conf", 0.5)))
+            is_match = bool(r.get("strict_match", False))
             if conf_val >= fl:
                 if is_match:
                     r_right += 1
@@ -131,13 +114,18 @@ def calculate_metrics(results: List[Dict[str, Any]]) -> Dict[str, Any]:
             "wrong_actions": r_wrong,
             "stalled": r_stalled,
         })
-        if r_wrong < min_wrong or (r_wrong == min_wrong and r_right > 0):
-            min_wrong = r_wrong
+        # Асимметричная целевая функция Jev: штраф за Wrong Action в 3 раза выше выгоды от Right,
+        # при этом порог должен пропускать хотя бы часть верных ответов (r_right > 0).
+        utility = (r_right * 1.0) - (r_wrong * 3.0) - (0.5 if r_right == 0 else 0.0)
+        if utility > best_utility:
+            best_utility = utility
             best_floor = fl
 
-    # По категорийный срез
+    # По категорийный срез (для execute_tools и общий)
     category_stats: Dict[str, Dict[str, int]] = {}
     for r in results:
+        if r["expected_decision"] != "execute_tools":
+            continue
         expected_cat = r.get("expected_category") or "general_utility"
         if expected_cat not in category_stats:
             category_stats[expected_cat] = {"total": 0, "correct": 0}
@@ -202,10 +190,11 @@ def evaluate(
     for idx, c in enumerate(cases):
         state = c.get("state", "")
         questions = c.get("questions", {})
-        label = c.get("label", {})
+        expected = c.get("expected") or {}
+        label = c.get("label") or {}
 
-        expected_td = label.get("tool_decision")
-        expected_cat = label.get("category")
+        expected_td = expected.get("tool_decision") or label.get("tool_decision")
+        expected_cat = expected.get("category") or label.get("category") or "general_utility"
 
         t0 = time.time()
         resp = query_laya(laya_url, state, questions)
@@ -223,13 +212,26 @@ def evaluate(
         pred_td = td_ans.get("choice")
         pred_cat = cat_ans.get("choice")
 
-        td_probs = td_ans.get("probabilities", {})
-        pred_td_prob = td_probs.get("execute_tools", 0.95 if pred_td == "execute_tools" else 0.05)
-        pred_td_conf = float(td_ans.get("confidence") or 0.90)
+        td_probs = td_ans.get("probabilities") or {}
+        cat_probs = cat_ans.get("probabilities") or {}
 
-        td_match = (pred_td == expected_td)
+        pred_td_prob = float(td_probs.get("execute_tools", 0.95 if pred_td == "execute_tools" else 0.05))
+        # answer_confidence = max(p) (вероятностная масса выбранного класса после температурной калибровки)
+        pred_td_conf = (
+            max(float(v) for v in td_probs.values())
+            if td_probs
+            else float(td_ans.get("answer_confidence") or td_ans.get("confidence") or 0.75)
+        )
+        pred_cat_conf = (
+            max(float(v) for v in cat_probs.values())
+            if cat_probs
+            else float(cat_ans.get("answer_confidence") or cat_ans.get("confidence") or 0.50)
+        )
+        combined_conf = pred_td_conf if expected_td == "direct_chat" else min(pred_td_conf, max(0.50, pred_cat_conf))
+
+        td_match = pred_td == expected_td
         cat_match = (pred_cat == expected_cat) or (expected_td == "direct_chat")
-        strict_match = td_match and (cat_match or expected_td == "direct_chat")
+        strict_match = bool(td_match and cat_match)
 
         result_row = {
             "index": idx,
@@ -241,14 +243,16 @@ def evaluate(
             "predicted_category": pred_cat,
             "category_match": cat_match,
             "strict_match": strict_match,
-            "predicted_td_prob": pred_td_prob,
-            "predicted_td_conf": pred_td_conf,
+            "predicted_td_prob": round(pred_td_prob, 4),
+            "predicted_td_conf": round(pred_td_conf, 4),
+            "predicted_cat_conf": round(pred_cat_conf, 4),
+            "combined_conf": round(combined_conf, 4),
             "latency_ms": round(elapsed_ms, 2),
         }
         eval_results.append(result_row)
 
         icon = "✓" if strict_match else "✗"
-        status_str = f"[{icon}] TD: {pred_td} (exp: {expected_td}), Cat: {pred_cat} (exp: {expected_cat})"
+        status_str = f"[{icon}] TD: {pred_td} (exp: {expected_td}, p={pred_td_conf:.2f}), Cat: {pred_cat} (exp: {expected_cat})"
         print(f"  [{idx+1}/{len(cases)}] {status_str} ({elapsed_ms:.1f}ms) | \"{state[:45]}\"")
 
         if not strict_match:
@@ -274,7 +278,7 @@ def evaluate(
     print(f"  • Category Accuracy      : {metrics.get('category_accuracy', 0)*100:.1f}% ({metrics.get('category_matches', 0)}/{metrics.get('category_tested_cases', 0)})")
     print(f"  • Strict Combined Acc    : {metrics.get('combined_strict_accuracy', 0)*100:.1f}%")
     print(f"  • Brier Score (ниже-лучше): {metrics.get('brier_score', 0):.4f}")
-    print(f"  • Mean Confidence        : {metrics.get('mean_confidence', 0):.4f}")
+    print(f"  • Mean Answer Confidence : {metrics.get('mean_confidence', 0):.4f}")
     print(f"  • Средняя задержка       : {report['avg_latency_ms']:.1f} ms")
     print(f"{'='*55}\n")
 
@@ -299,7 +303,7 @@ def main() -> None:
     parser.add_argument(
         "--eval-data",
         default=str(default_eval_file),
-        help="Путь к файлу валидационного датасета eval.jsonl (по умолчанию: skills/laya-train/data/eval.jsonl)",
+        help="Путь к файлу валидационного датасета eval.jsonl",
     )
     parser.add_argument(
         "--laya-url",
@@ -315,7 +319,7 @@ def main() -> None:
     parser.add_argument(
         "--out",
         default="",
-        help="Путь к файлу сохранения результатов JSON (по умолчанию: skills/laya-train/data/eval_<phase>.json)",
+        help="Путь к файлу сохранения результатов JSON",
     )
 
     args = parser.parse_args()

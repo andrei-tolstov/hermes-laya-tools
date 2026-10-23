@@ -1,10 +1,11 @@
 # Отчёт о работе скила обучения и калибровки Laya (`laya-train`)
 
-- **Дата выполнения**: 2026-10-23 11:49:54 UTC
+- **Дата выполнения**: 2026-10-23 13:18:12 UTC
 - **Движок**: Laya System 1 Decision Engine (http://127.0.0.1:8787)
-- **Обучающая выборка**: `/root/.hermes/skills/laya-train/data/train.jsonl` (68 сэмплов)
-- **Валидационная выборка**: `/root/.hermes/skills/laya-train/data/eval.jsonl` (16 кейсов)
-- **Алгоритм**: rlcd (эпох: 4)
+- **Базовый чекпоинт**: `convaiinnovations/laya-multilingual`
+- **Обучающая выборка**: `/root/.hermes/skills/laya-train/data/train.jsonl` (32 сэмплов)
+- **Валидационная выборка**: `/root/.hermes/skills/laya-train/data/eval.jsonl` (7 кейсов)
+- **Алгоритм**: `rlcd` (эпох: 4, micro-batch: 4, grad-accum: 1, shuffle-options: `True`)
 
 ---
 
@@ -12,27 +13,37 @@
 
 | Метрика | До обучения (Pre-Test) | После обучения (Post-Test) | Изменение (Δ) | Статус |
 |:---|:---:|:---:|:---:|:---:|
-| **Tool Decision Accuracy** | **37.5%** | **37.5%** | **+0.0%** | 🟡 Без изменений |
-| **Category Accuracy** | **0.0%** | **0.0%** | **+0.0%** | 🟡 Без изменений |
-| **Combined Strict Accuracy** | **0.0%** | **0.0%** | **+0.0%** | 🟡 Без изменений |
-| **Brier Score** *(калибровка, ниже=лучше)* | 0.2885 | 0.2885 | -0.0000 | 🟡 Без изменений |
-| **Mean Confidence** | 0.0377 | 0.0377 | +0.0000 | 🟡 Стабильно |
-| **Средняя задержка инференса** | 362.5 ms | 362.6 ms | +0.1 ms | ⚡ System 1 Fast Lane |
+| **Tool Decision Accuracy** | **85.7%** | **85.7%** | **+0.0%** | 🟡 Без изменений |
+| **Category Accuracy** | **33.3%** | **66.7%** | **+33.3%** | 🟢 Улучшение |
+| **Combined Strict Accuracy** | **28.6%** | **57.1%** | **+28.6%** | 🟢 Улучшение |
+| **Brier Score** *(калибровка, ниже=лучше)* | 0.1645 | 0.1406 | -0.0239 | 🟢 Улучшение |
+| **Mean Confidence** | 0.8847 | 0.9907 | +0.1060 | 🟢 Рост уверенности |
+| **Средняя задержка инференса** | 371.9 ms | 249.1 ms | -122.8 ms | ⚡ System 1 Fast Lane |
 
 ---
 
-## 2. Точность в разрезе категорий инструментов
+## 2. Статистика сверки Laya vs Основная модель (Data Distillation)
+
+- **Всего уникальных диалоговых состояний**: **39**
+- **Сценарий A (Выбор Laya и выбор Основной модели уже были в логах/БД)**: **30**
+- **Сценарий B (Выполнен live-запрос к Основной модели для сравнения с Laya)**: **9**
+- **Выполнен live-запрос к Laya (при отсутствии в логах)**: **13**
+- **Совпадение Laya с Основной моделью до обучения**: **7** (17.9%)
+- **Расхождения (Hard Negatives, усиленные в `train.jsonl` 2x)**: **32**
+
+---
+
+## 3. Точность в разрезе категорий инструментов
 
 | Категория | До обучения | После обучения | Дельта |
 |:---|:---:|:---:|:---:|
-| `desktop_and_computer_use` | 0.0% | 0.0% | 🟡 0.0% |
 | `filesystem` | 0.0% | 0.0% | 🟡 0.0% |
-| `general_utility` | 100.0% | 100.0% | 🟡 0.0% |
-| `terminal_execution` | 0.0% | 0.0% | 🟡 0.0% |
+| `marketplace_and_commerce` | 0.0% | 0.0% | 🟡 0.0% |
+| `terminal_execution` | 50.0% | 100.0% | 🟢 +50.0% |
 
 ---
 
-## 3. Интеграция с плагином kerpopule/hermes-jev-skills
+## 4. Интеграция с плагином kerpopule/hermes-jev-skills
 
 - **Статус плагина**: **Обнаружен и активен (Enabled)**
 - **Директория плагина**: `/root/.hermes/plugins/hermes-jev`
@@ -41,38 +52,37 @@
 
 | Порог (Floor) | Верные решения (Right) | Ошибочные действия (Wrong Actions) | Воздержания (Stalled) | Примечание |
 |:---:|:---:|:---:|:---:|:---|
-| 0.50 | 0 | **0** | 16 | 🎯 (Recommended)
-| 0.55 | 0 | **0** | 16 |
-| 0.60 | 0 | **0** | 16 |
-| 0.65 | 0 | **0** | 16 |
-| 0.70 | 0 | **0** | 16 |
-| 0.75 | 0 | **0** | 16 |
-| 0.80 | 0 | **0** | 16 |
-| 0.85 | 0 | **0** | 16 |
-| 0.90 | 0 | **0** | 16 |
+| 0.50 | 4 | **3** | 0 | 🎯 (Recommended)
+| 0.55 | 4 | **3** | 0 |
+| 0.60 | 4 | **3** | 0 |
+| 0.65 | 4 | **3** | 0 |
+| 0.70 | 4 | **3** | 0 |
+| 0.75 | 4 | **3** | 0 |
+| 0.80 | 4 | **3** | 0 |
+| 0.85 | 4 | **3** | 0 |
+| 0.90 | 4 | **3** | 0 |
 
-- **Рекомендуемый порог (Confidence Floor)**: **0.50** (минимизирует опасные ложные срабатывания при быстром Fast Lane инференсе).
+- **Рекомендуемый порог (Confidence Floor)**: **0.50** (минимизирует ложные срабатывания при Fast Lane инференсе).
 
 ---
 
-## 4. Анализ оставшихся расхождений (Discrepancies)
+## 5. Анализ оставшихся расхождений (Discrepancies)
 
 | Запрос пользователя | Ожидалось (Ground Truth) | Предсказано Laya |
 |:---|:---|:---|
-| "executed=mcp__marketplace__avito_search hit=False" | `direct_chat / general_utility` | `execute_tools / terminal_execution` |
-| "executed=read_file hit=True" | `direct_chat / general_utility` | `execute_tools / desktop_and_computer_use` |
-| "executed=patch hit=False" | `direct_chat / general_utility` | `execute_tools / terminal_execution` |
-| "executed=manage_connections hit=False" | `direct_chat / general_utility` | `execute_tools / desktop_and_computer_use` |
-| "executed=execute_code hit=True" | `direct_chat / general_utility` | `execute_tools / terminal_execution` |
-| "executed=memory hit=True" | `direct_chat / general_utility` | `execute_tools / desktop_and_computer_use` |
-| "executed=terminal hit=False" | `direct_chat / general_utility` | `execute_tools / terminal_execution` |
-| "executed=mcp__marketplace__ozon_search hit=True" | `direct_chat / general_utility` | `execute_tools / web_and_search` |
+| "выведи список маркетплейсов которые тебе доступны" | `execute_tools / marketplace_and_commerce` | `execute_tools / terminal_execution` |
+| ""/root/projects_hermes/d"
+
+прочитай рассказы по ссылкам
+напиши продолж" | `execute_tools / filesystem` | `execute_tools / terminal_execution` |
+| "Сжатие промптов
+Сокращайте расход токенов, сжимая промпты перед отпра" | `direct_chat / general_utility` | `execute_tools / terminal_execution` |
 
 ---
 
-## 5. Итоговое заключение скила
+## 6. Итоговое заключение скила
 
-- Модель успешно прошла цикл валидации и дообучения.
-- Итоговая комбинированная точность: **0.0%**.
-- Калибровочный показатель Brier: **0.2885**.
+- Модель успешно прошла цикл валидации, дообучения и горячей перезагрузки GGUF.
+- Итоговая комбинированная точность: **57.1%** (прирост **+28.6%**).
+- Калибровочный показатель Brier: **0.1406**.
 - Рекомендация: **Рекомендуется к использованию в проде**.

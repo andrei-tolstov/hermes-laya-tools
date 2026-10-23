@@ -1,14 +1,22 @@
 {
-  "timestamp": "2026-10-23T11:49:54Z",
+  "timestamp": "2026-10-23T13:18:12Z",
   "train_metadata": {
     "train_file": "/root/.hermes/skills/laya-train/data/train.jsonl",
-    "train_items": 68,
-    "eval_items": 16,
+    "train_items": 32,
+    "eval_items": 7,
+    "base_checkpoint": "convaiinnovations/laya-multilingual",
+    "checkpoint_out": "/root/deepseek-harness/finetune-checkpoint",
     "loss": "rlcd",
     "epochs": 4,
-    "dry_run": true,
+    "micro_batch": 4,
+    "grad_accum": 1,
+    "device": "cpu",
+    "gpu0_free_vram_mib": 2027,
+    "shuffle_options": true,
+    "dry_run": false,
     "jev_integrated": true
   },
+  "distillation_summary": {},
   "jev_integration": {
     "is_detected": true,
     "is_enabled": true,
@@ -49,658 +57,328 @@
   },
   "before": {
     "phase": "before",
-    "timestamp": "2026-10-23T11:49:46Z",
+    "timestamp": "2026-10-23T13:08:58Z",
     "laya_url": "http://127.0.0.1:8787",
     "eval_dataset": "/root/.hermes/skills/laya-train/data/eval.jsonl",
     "metrics": {
-      "total_cases": 16,
-      "tool_decision_accuracy": 0.375,
+      "total_cases": 7,
+      "tool_decision_accuracy": 0.8571,
       "tool_decision_matches": 6,
-      "category_accuracy": 0.0,
-      "category_matches": 0,
+      "category_accuracy": 0.3333,
+      "category_matches": 2,
       "category_tested_cases": 6,
-      "combined_strict_accuracy": 0.0,
-      "combined_matches": 0,
-      "mean_confidence": 0.0377,
-      "brier_score": 0.2885,
+      "combined_strict_accuracy": 0.2857,
+      "combined_matches": 2,
+      "mean_confidence": 0.8847,
+      "brier_score": 0.1645,
       "calibration_sweep": [
         {
           "floor": 0.5,
-          "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "right": 2,
+          "wrong_actions": 5,
+          "stalled": 0
         },
         {
           "floor": 0.55,
           "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "wrong_actions": 1,
+          "stalled": 6
         },
         {
           "floor": 0.6,
           "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "wrong_actions": 1,
+          "stalled": 6
         },
         {
           "floor": 0.65,
           "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "wrong_actions": 1,
+          "stalled": 6
         },
         {
           "floor": 0.7,
           "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "wrong_actions": 1,
+          "stalled": 6
         },
         {
           "floor": 0.75,
           "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "wrong_actions": 1,
+          "stalled": 6
         },
         {
           "floor": 0.8,
           "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "wrong_actions": 1,
+          "stalled": 6
         },
         {
           "floor": 0.85,
           "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "wrong_actions": 1,
+          "stalled": 6
         },
         {
           "floor": 0.9,
           "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "wrong_actions": 1,
+          "stalled": 6
         }
       ],
-      "recommended_confidence_floor": 0.5,
+      "recommended_confidence_floor": 0.55,
       "categories": {
-        "general_utility": {
-          "total": 10,
-          "correct": 10,
-          "accuracy": 1.0
+        "terminal_execution": {
+          "total": 4,
+          "correct": 2,
+          "accuracy": 0.5
         },
-        "desktop_and_computer_use": {
+        "marketplace_and_commerce": {
           "total": 1,
           "correct": 0,
           "accuracy": 0.0
         },
-        "terminal_execution": {
-          "total": 3,
-          "correct": 0,
-          "accuracy": 0.0
-        },
         "filesystem": {
-          "total": 2,
+          "total": 1,
           "correct": 0,
           "accuracy": 0.0
         }
       }
     },
-    "avg_latency_ms": 362.48,
-    "discrepancies_count": 16,
+    "avg_latency_ms": 371.86,
+    "discrepancies_count": 5,
     "discrepancies": [
       {
-        "index": 0,
-        "state_snippet": "executed=mcp__marketplace__avito_search hit=False",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "terminal_execution",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.5833,
-        "predicted_td_conf": 0.0201,
-        "latency_ms": 347.61
-      },
-      {
         "index": 1,
-        "state_snippet": "executed=read_file hit=True",
-        "expected_decision": "direct_chat",
+        "state_snippet": "проведи анализ на сколько имеет смысл на стороне omniroute дополнитель",
+        "expected_decision": "execute_tools",
         "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": true,
+        "tool_decision_match": true,
+        "expected_category": "terminal_execution",
+        "predicted_category": "devops_containers",
+        "category_match": false,
         "strict_match": false,
-        "predicted_td_prob": 0.5949,
-        "predicted_td_conf": 0.0261,
-        "latency_ms": 299.55
+        "predicted_td_prob": 0.8654,
+        "predicted_td_conf": 0.8654,
+        "predicted_cat_conf": 0.2525,
+        "combined_conf": 0.5,
+        "latency_ms": 307.8
       },
       {
         "index": 2,
-        "state_snippet": "executed=patch hit=False",
-        "expected_decision": "direct_chat",
+        "state_snippet": "выведи список маркетплейсов которые тебе доступны",
+        "expected_decision": "execute_tools",
         "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "terminal_execution",
-        "category_match": true,
+        "tool_decision_match": true,
+        "expected_category": "marketplace_and_commerce",
+        "predicted_category": "desktop_and_computer_use",
+        "category_match": false,
         "strict_match": false,
-        "predicted_td_prob": 0.5835,
-        "predicted_td_conf": 0.0202,
-        "latency_ms": 301.55
+        "predicted_td_prob": 0.9383,
+        "predicted_td_conf": 0.9383,
+        "predicted_cat_conf": 0.1369,
+        "combined_conf": 0.5,
+        "latency_ms": 302.13
       },
       {
         "index": 3,
-        "state_snippet": "executed=manage_connections hit=False",
-        "expected_decision": "direct_chat",
+        "state_snippet": "Megamarket — только через Chrome (ServicePipe)\nLamoda — поиск через Ch",
+        "expected_decision": "execute_tools",
         "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": true,
+        "tool_decision_match": true,
+        "expected_category": "terminal_execution",
+        "predicted_category": "marketplace_and_commerce",
+        "category_match": false,
         "strict_match": false,
-        "predicted_td_prob": 0.5919,
-        "predicted_td_conf": 0.0245,
-        "latency_ms": 294.57
-      },
-      {
-        "index": 4,
-        "state_snippet": "executed=execute_code hit=True",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "terminal_execution",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.62,
-        "predicted_td_conf": 0.0419,
-        "latency_ms": 294.06
+        "predicted_td_prob": 0.9796,
+        "predicted_td_conf": 0.9796,
+        "predicted_cat_conf": 0.2616,
+        "combined_conf": 0.5,
+        "latency_ms": 420.32
       },
       {
         "index": 5,
-        "state_snippet": "executed=memory hit=True",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.5993,
-        "predicted_td_conf": 0.0287,
-        "latency_ms": 288.26
-      },
-      {
-        "index": 6,
-        "state_snippet": "executed=terminal hit=False",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "terminal_execution",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.6215,
-        "predicted_td_conf": 0.043,
-        "latency_ms": 283.99
-      },
-      {
-        "index": 7,
-        "state_snippet": "executed=mcp__marketplace__ozon_search hit=True",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "web_and_search",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.597,
-        "predicted_td_conf": 0.0273,
-        "latency_ms": 297.05
-      },
-      {
-        "index": 8,
-        "state_snippet": "[IMPORTANT: Background process proc_22f50e17ceb2 matched watch pattern",
-        "expected_decision": "execute_tools",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": true,
-        "expected_category": "desktop_and_computer_use",
-        "predicted_category": "terminal_execution",
-        "category_match": false,
-        "strict_match": false,
-        "predicted_td_prob": 0.8204,
-        "predicted_td_conf": 0.3207,
-        "latency_ms": 407.76
-      },
-      {
-        "index": 9,
-        "state_snippet": "бекап должен происходить в 18.00 по мск",
-        "expected_decision": "execute_tools",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": true,
-        "expected_category": "terminal_execution",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": false,
-        "strict_match": false,
-        "predicted_td_prob": 0.5199,
-        "predicted_td_conf": 0.0011,
-        "latency_ms": 381.57
-      },
-      {
-        "index": 10,
-        "state_snippet": "[System: The active model for this chat has changed to andrei-router v",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.5502,
-        "predicted_td_conf": 0.0073,
-        "latency_ms": 394.91
-      },
-      {
-        "index": 11,
-        "state_snippet": "/root/.hermes/hermes-webui/\r\n@url:`https://github.com/nesquena/hermes-",
-        "expected_decision": "execute_tools",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": true,
-        "expected_category": "terminal_execution",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": false,
-        "strict_match": false,
-        "predicted_td_prob": 0.5505,
-        "predicted_td_conf": 0.0074,
-        "latency_ms": 597.85
-      },
-      {
-        "index": 12,
-        "state_snippet": "[System: The active model for this chat has changed to andrei-router v",
-        "expected_decision": "execute_tools",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": true,
-        "expected_category": "filesystem",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": false,
-        "strict_match": false,
-        "predicted_td_prob": 0.5388,
-        "predicted_td_conf": 0.0044,
-        "latency_ms": 456.13
-      },
-      {
-        "index": 13,
-        "state_snippet": "asd",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.585,
-        "predicted_td_conf": 0.0209,
-        "latency_ms": 339.57
-      },
-      {
-        "index": 14,
-        "state_snippet": "продолжай\n\nпродолжай",
-        "expected_decision": "execute_tools",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": true,
-        "expected_category": "terminal_execution",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": false,
-        "strict_match": false,
-        "predicted_td_prob": 0.543,
-        "predicted_td_conf": 0.0053,
-        "latency_ms": 292.36
-      },
-      {
-        "index": 15,
         "state_snippet": "\"/root/projects_hermes/d\"\n\nпрочитай рассказы по ссылкам\nнапиши продолж",
         "expected_decision": "execute_tools",
         "predicted_decision": "execute_tools",
         "tool_decision_match": true,
         "expected_category": "filesystem",
-        "predicted_category": "desktop_and_computer_use",
+        "predicted_category": "marketplace_and_commerce",
         "category_match": false,
         "strict_match": false,
-        "predicted_td_prob": 0.5378,
-        "predicted_td_conf": 0.0041,
-        "latency_ms": 522.85
+        "predicted_td_prob": 0.9612,
+        "predicted_td_conf": 0.9612,
+        "predicted_cat_conf": 0.3361,
+        "combined_conf": 0.5,
+        "latency_ms": 372.05
+      },
+      {
+        "index": 6,
+        "state_snippet": "Сжатие промптов\r\nСокращайте расход токенов, сжимая промпты перед отпра",
+        "expected_decision": "direct_chat",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": false,
+        "expected_category": "general_utility",
+        "predicted_category": "terminal_execution",
+        "category_match": true,
+        "strict_match": false,
+        "predicted_td_prob": 0.9744,
+        "predicted_td_conf": 0.9744,
+        "predicted_cat_conf": 0.2376,
+        "combined_conf": 0.9744,
+        "latency_ms": 540.48
       }
     ]
   },
   "after": {
     "phase": "after",
-    "timestamp": "2026-10-23T11:49:54Z",
+    "timestamp": "2026-10-23T13:18:12Z",
     "laya_url": "http://127.0.0.1:8787",
     "eval_dataset": "/root/.hermes/skills/laya-train/data/eval.jsonl",
     "metrics": {
-      "total_cases": 16,
-      "tool_decision_accuracy": 0.375,
+      "total_cases": 7,
+      "tool_decision_accuracy": 0.8571,
       "tool_decision_matches": 6,
-      "category_accuracy": 0.0,
-      "category_matches": 0,
+      "category_accuracy": 0.6667,
+      "category_matches": 4,
       "category_tested_cases": 6,
-      "combined_strict_accuracy": 0.0,
-      "combined_matches": 0,
-      "mean_confidence": 0.0377,
-      "brier_score": 0.2885,
+      "combined_strict_accuracy": 0.5714,
+      "combined_matches": 4,
+      "mean_confidence": 0.9907,
+      "brier_score": 0.1406,
       "calibration_sweep": [
         {
           "floor": 0.5,
-          "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "right": 4,
+          "wrong_actions": 3,
+          "stalled": 0
         },
         {
           "floor": 0.55,
-          "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "right": 4,
+          "wrong_actions": 3,
+          "stalled": 0
         },
         {
           "floor": 0.6,
-          "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "right": 4,
+          "wrong_actions": 3,
+          "stalled": 0
         },
         {
           "floor": 0.65,
-          "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "right": 4,
+          "wrong_actions": 3,
+          "stalled": 0
         },
         {
           "floor": 0.7,
-          "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "right": 4,
+          "wrong_actions": 3,
+          "stalled": 0
         },
         {
           "floor": 0.75,
-          "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "right": 4,
+          "wrong_actions": 3,
+          "stalled": 0
         },
         {
           "floor": 0.8,
-          "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "right": 4,
+          "wrong_actions": 3,
+          "stalled": 0
         },
         {
           "floor": 0.85,
-          "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "right": 4,
+          "wrong_actions": 3,
+          "stalled": 0
         },
         {
           "floor": 0.9,
-          "right": 0,
-          "wrong_actions": 0,
-          "stalled": 16
+          "right": 4,
+          "wrong_actions": 3,
+          "stalled": 0
         }
       ],
       "recommended_confidence_floor": 0.5,
       "categories": {
-        "general_utility": {
-          "total": 10,
-          "correct": 10,
+        "terminal_execution": {
+          "total": 4,
+          "correct": 4,
           "accuracy": 1.0
         },
-        "desktop_and_computer_use": {
+        "marketplace_and_commerce": {
           "total": 1,
           "correct": 0,
           "accuracy": 0.0
         },
-        "terminal_execution": {
-          "total": 3,
-          "correct": 0,
-          "accuracy": 0.0
-        },
         "filesystem": {
-          "total": 2,
+          "total": 1,
           "correct": 0,
           "accuracy": 0.0
         }
       }
     },
-    "avg_latency_ms": 362.55,
-    "discrepancies_count": 16,
+    "avg_latency_ms": 249.11,
+    "discrepancies_count": 3,
     "discrepancies": [
       {
-        "index": 0,
-        "state_snippet": "executed=mcp__marketplace__avito_search hit=False",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "terminal_execution",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.5833,
-        "predicted_td_conf": 0.0201,
-        "latency_ms": 349.52
-      },
-      {
-        "index": 1,
-        "state_snippet": "executed=read_file hit=True",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.5949,
-        "predicted_td_conf": 0.0261,
-        "latency_ms": 298.97
-      },
-      {
         "index": 2,
-        "state_snippet": "executed=patch hit=False",
-        "expected_decision": "direct_chat",
+        "state_snippet": "выведи список маркетплейсов которые тебе доступны",
+        "expected_decision": "execute_tools",
         "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
+        "tool_decision_match": true,
+        "expected_category": "marketplace_and_commerce",
         "predicted_category": "terminal_execution",
-        "category_match": true,
+        "category_match": false,
         "strict_match": false,
-        "predicted_td_prob": 0.5835,
-        "predicted_td_conf": 0.0202,
-        "latency_ms": 303.32
-      },
-      {
-        "index": 3,
-        "state_snippet": "executed=manage_connections hit=False",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.5919,
-        "predicted_td_conf": 0.0245,
-        "latency_ms": 294.79
-      },
-      {
-        "index": 4,
-        "state_snippet": "executed=execute_code hit=True",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "terminal_execution",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.62,
-        "predicted_td_conf": 0.0419,
-        "latency_ms": 295.04
+        "predicted_td_prob": 0.9974,
+        "predicted_td_conf": 0.9974,
+        "predicted_cat_conf": 0.9874,
+        "combined_conf": 0.9874,
+        "latency_ms": 212.24
       },
       {
         "index": 5,
-        "state_snippet": "executed=memory hit=True",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.5993,
-        "predicted_td_conf": 0.0287,
-        "latency_ms": 305.67
-      },
-      {
-        "index": 6,
-        "state_snippet": "executed=terminal hit=False",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "terminal_execution",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.6215,
-        "predicted_td_conf": 0.043,
-        "latency_ms": 295.31
-      },
-      {
-        "index": 7,
-        "state_snippet": "executed=mcp__marketplace__ozon_search hit=True",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "web_and_search",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.597,
-        "predicted_td_conf": 0.0273,
-        "latency_ms": 303.88
-      },
-      {
-        "index": 8,
-        "state_snippet": "[IMPORTANT: Background process proc_22f50e17ceb2 matched watch pattern",
-        "expected_decision": "execute_tools",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": true,
-        "expected_category": "desktop_and_computer_use",
-        "predicted_category": "terminal_execution",
-        "category_match": false,
-        "strict_match": false,
-        "predicted_td_prob": 0.8204,
-        "predicted_td_conf": 0.3207,
-        "latency_ms": 381.97
-      },
-      {
-        "index": 9,
-        "state_snippet": "бекап должен происходить в 18.00 по мск",
-        "expected_decision": "execute_tools",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": true,
-        "expected_category": "terminal_execution",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": false,
-        "strict_match": false,
-        "predicted_td_prob": 0.5199,
-        "predicted_td_conf": 0.0011,
-        "latency_ms": 367.48
-      },
-      {
-        "index": 10,
-        "state_snippet": "[System: The active model for this chat has changed to andrei-router v",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.5502,
-        "predicted_td_conf": 0.0073,
-        "latency_ms": 393.16
-      },
-      {
-        "index": 11,
-        "state_snippet": "/root/.hermes/hermes-webui/\r\n@url:`https://github.com/nesquena/hermes-",
-        "expected_decision": "execute_tools",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": true,
-        "expected_category": "terminal_execution",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": false,
-        "strict_match": false,
-        "predicted_td_prob": 0.5505,
-        "predicted_td_conf": 0.0074,
-        "latency_ms": 601.59
-      },
-      {
-        "index": 12,
-        "state_snippet": "[System: The active model for this chat has changed to andrei-router v",
-        "expected_decision": "execute_tools",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": true,
-        "expected_category": "filesystem",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": false,
-        "strict_match": false,
-        "predicted_td_prob": 0.5388,
-        "predicted_td_conf": 0.0044,
-        "latency_ms": 482.24
-      },
-      {
-        "index": 13,
-        "state_snippet": "asd",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.585,
-        "predicted_td_conf": 0.0209,
-        "latency_ms": 302.32
-      },
-      {
-        "index": 14,
-        "state_snippet": "продолжай\n\nпродолжай",
-        "expected_decision": "execute_tools",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": true,
-        "expected_category": "terminal_execution",
-        "predicted_category": "desktop_and_computer_use",
-        "category_match": false,
-        "strict_match": false,
-        "predicted_td_prob": 0.543,
-        "predicted_td_conf": 0.0053,
-        "latency_ms": 299.78
-      },
-      {
-        "index": 15,
         "state_snippet": "\"/root/projects_hermes/d\"\n\nпрочитай рассказы по ссылкам\nнапиши продолж",
         "expected_decision": "execute_tools",
         "predicted_decision": "execute_tools",
         "tool_decision_match": true,
         "expected_category": "filesystem",
-        "predicted_category": "desktop_and_computer_use",
+        "predicted_category": "terminal_execution",
         "category_match": false,
         "strict_match": false,
-        "predicted_td_prob": 0.5378,
-        "predicted_td_conf": 0.0041,
-        "latency_ms": 525.76
+        "predicted_td_prob": 0.9854,
+        "predicted_td_conf": 0.9854,
+        "predicted_cat_conf": 0.9716,
+        "combined_conf": 0.9716,
+        "latency_ms": 229.41
+      },
+      {
+        "index": 6,
+        "state_snippet": "Сжатие промптов\r\nСокращайте расход токенов, сжимая промпты перед отпра",
+        "expected_decision": "direct_chat",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": false,
+        "expected_category": "general_utility",
+        "predicted_category": "terminal_execution",
+        "category_match": true,
+        "strict_match": false,
+        "predicted_td_prob": 0.9915,
+        "predicted_td_conf": 0.9915,
+        "predicted_cat_conf": 0.9926,
+        "combined_conf": 0.9915,
+        "latency_ms": 352.96
       }
     ]
   },
   "delta": {
     "tool_decision_accuracy": 0.0,
-    "category_accuracy": 0.0,
-    "combined_strict_accuracy": 0.0,
-    "brier_score": 0.0
+    "category_accuracy": 0.3334,
+    "combined_strict_accuracy": 0.2857,
+    "brier_score": -0.0239
   }
 }
