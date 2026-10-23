@@ -1,0 +1,263 @@
+{
+  "timestamp": "2026-10-23T11:12:12Z",
+  "train_metadata": {
+    "train_file": "/root/.hermes/skills/laya-train/data/train.jsonl",
+    "train_items": 28,
+    "eval_items": 7,
+    "loss": "rlcd",
+    "epochs": 4,
+    "dry_run": true
+  },
+  "before": {
+    "phase": "before",
+    "timestamp": "2026-10-23T11:12:07Z",
+    "laya_url": "http://127.0.0.1:8787",
+    "eval_dataset": "/root/.hermes/skills/laya-train/data/eval.jsonl",
+    "metrics": {
+      "total_cases": 7,
+      "tool_decision_accuracy": 0.8571,
+      "tool_decision_matches": 6,
+      "category_accuracy": 0.1667,
+      "category_matches": 1,
+      "category_tested_cases": 6,
+      "combined_strict_accuracy": 0.1429,
+      "combined_matches": 1,
+      "mean_confidence": 0.0536,
+      "brier_score": 0.2158,
+      "categories": {
+        "filesystem": {
+          "total": 4,
+          "correct": 0,
+          "accuracy": 0.0
+        },
+        "desktop_and_computer_use": {
+          "total": 2,
+          "correct": 1,
+          "accuracy": 0.5
+        },
+        "general_utility": {
+          "total": 1,
+          "correct": 1,
+          "accuracy": 1.0
+        }
+      }
+    },
+    "avg_latency_ms": 429.08,
+    "discrepancies_count": 6,
+    "discrepancies": [
+      {
+        "index": 0,
+        "state_snippet": "как работает tool_search в hermes?",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "filesystem",
+        "predicted_category": "desktop_and_computer_use",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.5553,
+        "predicted_td_conf": 0.0088,
+        "latency_ms": 391.13
+      },
+      {
+        "index": 1,
+        "state_snippet": "есть у тебя встроенное сжатие вывода shell команд или что то подобное ",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "filesystem",
+        "predicted_category": "desktop_and_computer_use",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.5095,
+        "predicted_td_conf": 0.0003,
+        "latency_ms": 487.26
+      },
+      {
+        "index": 2,
+        "state_snippet": "Найди на маркетплейсах оперативную память ecc ram 32гб 1600mhz , прове",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "filesystem",
+        "predicted_category": "desktop_and_computer_use",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.5219,
+        "predicted_td_conf": 0.0014,
+        "latency_ms": 519.46
+      },
+      {
+        "index": 4,
+        "state_snippet": "[IMPORTANT: Background process proc_22f50e17ceb2 matched watch pattern",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "desktop_and_computer_use",
+        "predicted_category": "terminal_execution",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.8204,
+        "predicted_td_conf": 0.3207,
+        "latency_ms": 395.2
+      },
+      {
+        "index": 5,
+        "state_snippet": "exit",
+        "expected_decision": "direct_chat",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": false,
+        "expected_category": "general_utility",
+        "predicted_category": "desktop_and_computer_use",
+        "category_match": true,
+        "strict_match": false,
+        "predicted_td_prob": 0.6131,
+        "predicted_td_conf": 0.0372,
+        "latency_ms": 296.03
+      },
+      {
+        "index": 6,
+        "state_snippet": "\"/root/projects_hermes/d\"\n\nпрочитай рассказы по ссылкам\nнапиши продолж",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "filesystem",
+        "predicted_category": "desktop_and_computer_use",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.5378,
+        "predicted_td_conf": 0.0041,
+        "latency_ms": 524.13
+      }
+    ]
+  },
+  "after": {
+    "phase": "after",
+    "timestamp": "2026-10-23T11:12:12Z",
+    "laya_url": "http://127.0.0.1:8787",
+    "eval_dataset": "/root/.hermes/skills/laya-train/data/eval.jsonl",
+    "metrics": {
+      "total_cases": 7,
+      "tool_decision_accuracy": 0.8571,
+      "tool_decision_matches": 6,
+      "category_accuracy": 0.1667,
+      "category_matches": 1,
+      "category_tested_cases": 6,
+      "combined_strict_accuracy": 0.1429,
+      "combined_matches": 1,
+      "mean_confidence": 0.0536,
+      "brier_score": 0.2158,
+      "categories": {
+        "filesystem": {
+          "total": 4,
+          "correct": 0,
+          "accuracy": 0.0
+        },
+        "desktop_and_computer_use": {
+          "total": 2,
+          "correct": 1,
+          "accuracy": 0.5
+        },
+        "general_utility": {
+          "total": 1,
+          "correct": 1,
+          "accuracy": 1.0
+        }
+      }
+    },
+    "avg_latency_ms": 434.22,
+    "discrepancies_count": 6,
+    "discrepancies": [
+      {
+        "index": 0,
+        "state_snippet": "как работает tool_search в hermes?",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "filesystem",
+        "predicted_category": "desktop_and_computer_use",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.5553,
+        "predicted_td_conf": 0.0088,
+        "latency_ms": 438.71
+      },
+      {
+        "index": 1,
+        "state_snippet": "есть у тебя встроенное сжатие вывода shell команд или что то подобное ",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "filesystem",
+        "predicted_category": "desktop_and_computer_use",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.5095,
+        "predicted_td_conf": 0.0003,
+        "latency_ms": 467.93
+      },
+      {
+        "index": 2,
+        "state_snippet": "Найди на маркетплейсах оперативную память ecc ram 32гб 1600mhz , прове",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "filesystem",
+        "predicted_category": "desktop_and_computer_use",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.5219,
+        "predicted_td_conf": 0.0014,
+        "latency_ms": 519.98
+      },
+      {
+        "index": 4,
+        "state_snippet": "[IMPORTANT: Background process proc_22f50e17ceb2 matched watch pattern",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "desktop_and_computer_use",
+        "predicted_category": "terminal_execution",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.8204,
+        "predicted_td_conf": 0.3207,
+        "latency_ms": 399.73
+      },
+      {
+        "index": 5,
+        "state_snippet": "exit",
+        "expected_decision": "direct_chat",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": false,
+        "expected_category": "general_utility",
+        "predicted_category": "desktop_and_computer_use",
+        "category_match": true,
+        "strict_match": false,
+        "predicted_td_prob": 0.6131,
+        "predicted_td_conf": 0.0372,
+        "latency_ms": 298.5
+      },
+      {
+        "index": 6,
+        "state_snippet": "\"/root/projects_hermes/d\"\n\nпрочитай рассказы по ссылкам\nнапиши продолж",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "filesystem",
+        "predicted_category": "desktop_and_computer_use",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.5378,
+        "predicted_td_conf": 0.0041,
+        "latency_ms": 533.14
+      }
+    ]
+  },
+  "delta": {
+    "tool_decision_accuracy": 0.0,
+    "category_accuracy": 0.0,
+    "combined_strict_accuracy": 0.0,
+    "brier_score": 0.0
+  }
+}
