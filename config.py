@@ -128,6 +128,26 @@ def _read_config_yaml_settings(
     return {}
 
 
+def clear_yaml_setting(
+    key: str,
+    plugin_id: str = "hermes-laya-tools",
+    config_path: Path | str | None = None,
+) -> None:
+    """Clear or reset a transient plugin setting (e.g. recategorize_now: true -> false) in config.yaml."""
+    cfg_path = _find_hermes_config_file(config_path=config_path)
+    if not cfg_path or not cfg_path.is_file():
+        return
+    try:
+        import re
+        text = cfg_path.read_text(encoding="utf-8")
+        pattern = re.compile(rf"^(\s*{re.escape(key)}\s*:\s*)(?:true|yes|1)\b", re.IGNORECASE | re.MULTILINE)
+        new_text, count = pattern.subn(r"\g<1>false", text)
+        if count > 0:
+            cfg_path.write_text(new_text, encoding="utf-8")
+    except Exception:
+        pass
+
+
 def _resolve_val(
     ctx: Any,
     yaml_settings: Mapping[str, Any],

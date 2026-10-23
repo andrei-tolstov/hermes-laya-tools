@@ -15,13 +15,13 @@ from typing import Any, Dict, Optional, Set
 try:
     from .categorizer import ToolCategorizer, extract_tool_name
     from .client import LayaClient
-    from .config import LayaConfig
+    from .config import LayaConfig, clear_yaml_setting
     from .logger import LayaAuditLogger
     from .router import ToolRouter
 except ImportError:
     from categorizer import ToolCategorizer, extract_tool_name
     from client import LayaClient
-    from config import LayaConfig
+    from config import LayaConfig, clear_yaml_setting
     from logger import LayaAuditLogger
     from router import ToolRouter
 
@@ -42,10 +42,22 @@ _session_lock = threading.Lock()
 
 
 def _get_tools_fallback() -> list[Any]:
-    """Retrieve default tool definitions from Hermes model_tools if agent is unreachable."""
+    """Retrieve full uncollapsed tool definitions across hot + catalog/MCP tools."""
+    try:
+        from .tool_collector import collect_all_tools
+    except ImportError:
+        from tool_collector import collect_all_tools
+
+    try:
+        tools = collect_all_tools()
+        if isinstance(tools, list) and tools:
+            return tools
+    except Exception as exc:
+        logger.debug("Failed to collect all tools in fallback: %s", exc)
+
     try:
         from agent import model_tools
-        tools = model_tools.get_tool_definitions()
+        tools = model_tools.get_tool_definitions(skip_tool_search_assembly=True, quiet_mode=True)
         if isinstance(tools, list) and tools:
             return tools
     except Exception:
@@ -190,6 +202,7 @@ def _on_pre_llm_call(session_id: str = "", turn_id: str = "", **kwargs: Any) -> 
     if _config.recategorize_now and _categorizer is not None:
         try:
             _config.recategorize_now = False
+            clear_yaml_setting("recategorize_now")
             recat_res = _categorizer.recategorize(kwargs.get("tools") or _get_tools_fallback())
             summary_msg = recat_res.get("summary") or recat_res.get("message", "done")
             logger.info("Recategorize trigger executed: %s", summary_msg)
@@ -216,6 +229,7 @@ def _on_pre_llm_call(session_id: str = "", turn_id: str = "", **kwargs: Any) -> 
         context=kwargs,
         session_id=session_id,
         turn_id=turn_id,
+        agent=agent,
     )
 
     if _config.is_shadow:
@@ -279,6 +293,7 @@ def _on_pre_api_request(**kwargs: Any) -> None:
         context=kwargs,
         session_id=session_id,
         turn_id=turn_id,
+        agent=_get_agent_from_runtime(session_id),
     )
 
 
@@ -361,6 +376,12 @@ def _laya_command(raw_args: str = "") -> str:
         status_str = "online (healthy)" if health else "unreachable"
         last_dec = _router.last_decision or {}
         dist = _categorizer.last_distribution_summary if _categorizer else "none"
+        if _categorizer and (dist == "none" or dist.startswith("Всего тулзов: 0")):
+            try:
+                recat_res = _categorizer.recategorize()
+                dist = recat_res.get("summary") or dist
+            except Exception:
+                pass
         return (
             f"Laya Engine: {status_str} ({_config.sidecar_url})\n"
             f"Mode: {_config.mode.upper()} {'(SHADOW: primary output untouched)' if _config.is_shadow else ''}\n"

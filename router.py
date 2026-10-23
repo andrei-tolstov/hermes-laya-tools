@@ -24,12 +24,14 @@ try:
     from .config import LayaConfig
     from .hygiene import looks_trivial, redact_sensitive, unwrap
     from .logger import LayaAuditLogger
+    from .tool_collector import collect_all_tools, get_bridge_tools, is_bridge_tool
 except ImportError:
     from categorizer import ToolCategorizer, extract_tool_desc, extract_tool_name
     from client import LayaClient
     from config import LayaConfig
     from hygiene import looks_trivial, redact_sensitive, unwrap
     from logger import LayaAuditLogger
+    from tool_collector import collect_all_tools, get_bridge_tools, is_bridge_tool
 
 logger = logging.getLogger("hermes.plugin.laya.router")
 
@@ -67,14 +69,16 @@ class ToolRouter:
         context: Any,
         session_id: str = "",
         turn_id: str = "",
+        agent: Any = None,
     ) -> Tuple[List[Any], Dict[str, Any]]:
-        """Route and filter tools for the upcoming model call.
+        """Route and filter tools for the upcoming model call across the full tools catalog.
 
         Args:
             tools: Available tool schemas from Hermes agent.
             context: Prompt string, messages list, or TurnContext.
             session_id: Current Hermes session identifier.
             turn_id: Current Hermes turn identifier.
+            agent: Optional live agent instance with full toolset scopes.
 
         Returns:
             Tuple of (effective_tools, decision_info).
@@ -123,10 +127,15 @@ class ToolRouter:
             self.last_decision = decision
             return [], decision
 
+        # Collect complete uncollapsed tools catalog (hot + deferred/catalog/MCP)
+        full_catalog = collect_all_tools(agent=agent, extra_tools=tools)
+        routing_tools = full_catalog if full_catalog else tools
+        bridge_tools = get_bridge_tools(tools)
+
         # 2. Repeat-Ask LRU Cache
         cache_key = None
         if self.config.cache_repeat_asks:
-            tools_sig = ",".join(sorted(extract_tool_name(t) for t in tools))
+            tools_sig = ",".join(sorted(extract_tool_name(t) for t in routing_tools))
             cache_key = hashlib.sha256(f"{state_text}:{tools_sig}:{self.config.mode}".encode("utf-8")).hexdigest()
             if cache_key in self._decision_cache:
                 cached_tools, cached_dec = self._decision_cache[cache_key]
@@ -143,14 +152,15 @@ class ToolRouter:
         try:
             if self.config.hierarchical:
                 selected_tools, decision = self._route_hierarchical(
-                    tools=tools,
+                    tools=routing_tools,
                     state_text=state_text,
                     session_id=session_id,
                     turn_id=turn_id,
+                    bridge_tools=bridge_tools,
                 )
             else:
                 selected_tools, decision = self._route_flat(
-                    tools=tools,
+                    tools=routing_tools,
                     state_text=state_text,
                     session_id=session_id,
                     turn_id=turn_id,
@@ -220,6 +230,7 @@ class ToolRouter:
         state_text: str,
         session_id: str,
         turn_id: str,
+        bridge_tools: Optional[List[Any]] = None,
     ) -> Tuple[List[Any], Dict[str, Any]]:
         """Two-level routing: Level 1 (category) -> Level 2 (tools ranking)."""
         category_groups = self.categorizer.get_categories(tools)
@@ -268,6 +279,8 @@ class ToolRouter:
         decision_choice = tool_decision_ans.get("choice")
         cat_choice = category_ans.get("choice")
         cat_probs = category_ans.get("probabilities", {})
+        if not cat_probs and cat_choice:
+            cat_probs = {cat_choice: float(category_ans.get("confidence") or 0.95)}
         latency_ms = level1_resp.get("latency_ms")
 
         tool_probs = tool_decision_ans.get("probabilities", {})
@@ -366,6 +379,14 @@ class ToolRouter:
         # Level 2: If pool <= max_tools, no extra ranking needed
         if len(candidate_pool) <= self.config.max_tools:
             selected_names = [extract_tool_name(t) for t in candidate_pool]
+            effective_tools = list(candidate_pool)
+            if not self.config.is_shadow and bridge_tools:
+                for bt in bridge_tools:
+                    bt_name = extract_tool_name(bt)
+                    if bt_name not in seen_names:
+                        effective_tools.append(bt)
+                        seen_names.add(bt_name)
+
             decision = {
                 "decision": "execute_tools",
                 "category": best_category["id"],
@@ -389,11 +410,19 @@ class ToolRouter:
                 raw_answers=answers,
                 latency_ms=latency_ms,
             )
-            return candidate_pool, decision
+            return effective_tools, decision
 
         # Candidate pool > max_tools: rank tools
         top_tools = self.rank_tools(candidate_pool, state_text)
         selected_names = [extract_tool_name(t) for t in top_tools]
+        effective_tools = list(top_tools)
+        if not self.config.is_shadow and bridge_tools:
+            top_names = set(selected_names)
+            for bt in bridge_tools:
+                bt_name = extract_tool_name(bt)
+                if bt_name not in top_names:
+                    effective_tools.append(bt)
+                    top_names.add(bt_name)
 
         decision = {
             "decision": "execute_tools",
@@ -419,7 +448,7 @@ class ToolRouter:
             raw_answers=answers,
             latency_ms=latency_ms,
         )
-        return top_tools, decision
+        return effective_tools, decision
 
     def _route_flat(
         self,

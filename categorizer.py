@@ -15,47 +15,130 @@ from typing import Any, Dict, List, Optional, Pattern
 
 try:
     from .client import LayaClient
+    from .tool_collector import collect_all_tools
 except ImportError:
     from client import LayaClient
+    from tool_collector import collect_all_tools
 
 logger = logging.getLogger("hermes.plugin.laya.categorizer")
 
 
 DEFAULT_CATEGORIES: Dict[str, Dict[str, Any]] = {
+    "marketplace_and_commerce": {
+        "name": "marketplace_and_commerce",
+        "description": "Online marketplaces, shopping, e-commerce, product search, item cards, reviews, orders, sellers, and prices (Ozon, Wildberries, Yandex Market, Avito, AliExpress, Taobao, Lamoda, Detmir, Drom, Citilink, DNS)",
+        "patterns": [
+            r"marketplace",
+            r"mcp__marketplace",
+            r"ozon",
+            r"wildberries",
+            r"\bwb\b",
+            r"yandex_market",
+            r"yandex_card",
+            r"yandex_search",
+            r"avito",
+            r"taobao",
+            r"lamoda",
+            r"detmir",
+            r"drom",
+            r"citilink",
+            r"\bdns\b",
+            r"aliexpress",
+            r"cian",
+            r"mpstats",
+            r"compare",
+            r"product",
+            r"goods",
+            r"order",
+            r"cart",
+            r"seller",
+            r"sku",
+        ],
+    },
+    "desktop_and_computer_use": {
+        "name": "desktop_and_computer_use",
+        "description": "Desktop GUI interaction, native OS control, computer use, window management, screen inspection, and workspace preview",
+        "patterns": [
+            r"computer_use",
+            r"desktop_preview",
+            r"desktop_project",
+            r"focus_pane",
+            r"read_window_below",
+            r"gui_tour",
+            r"set_theme",
+            r"show_tip",
+            r"annotate_preview",
+            r"drive_preview",
+            r"mouse",
+            r"keyboard",
+            r"window",
+            r"desktop",
+        ],
+    },
     "filesystem": {
         "name": "filesystem",
-        "description": "File and directory operations (reading, writing, editing, listing, searching files)",
-        "patterns": [r"fs", r"file", r"directory", r"read_", r"write_", r"edit_", r"str_replace", r"patch"],
+        "description": "File and directory operations (reading, writing, editing, listing, searching files, directory trees, and patching)",
+        "patterns": [
+            r"read_file",
+            r"write_file",
+            r"search_files",
+            r"edit_file",
+            r"view_file",
+            r"list_dir",
+            r"patch",
+            r"fs_",
+            r"\bfs\b",
+            r"\bdirectory\b",
+            r"\bfiles?\b",
+            r"read_",
+            r"write_",
+            r"str_replace",
+        ],
     },
     "terminal_execution": {
         "name": "terminal_execution",
-        "description": "Executing shell, bash, powershell commands, terminal scripts, and command-line processes",
-        "patterns": [r"bash", r"\bsh\b", r"pwsh", r"terminal", r"command", r"shell", r"exec"],
+        "description": "Executing shell, bash, powershell commands, terminal scripts, command-line processes, and code execution",
+        "patterns": [r"terminal", r"execute_code", r"close_terminal", r"read_terminal", r"bash", r"\bsh\b", r"pwsh", r"command", r"shell", r"exec"],
     },
     "web_and_search": {
         "name": "web_and_search",
-        "description": "Internet web search, downloading web pages, HTTP APIs, and online fetching",
-        "patterns": [r"web_search", r"search", r"fetch", r"curl", r"http", r"url", r"scrape"],
+        "description": "Internet web search, web page extraction, downloading pages, HTTP APIs, and online retrieval",
+        "patterns": [r"web_search", r"web_extract", r"x_search", r"search", r"fetch", r"curl", r"http", r"url", r"scrape"],
     },
     "browser_automation": {
         "name": "browser_automation",
-        "description": "Browser UI automation, web page navigation, clicking, typing, and desktop inspection",
-        "patterns": [r"browser", r"puppeteer", r"playwright", r"stagehand", r"chrome", r"page", r"screenshot"],
+        "description": "Browser UI automation, web page navigation, clicking, typing, web snapshots, and DOM inspection",
+        "patterns": [r"browser_exec", r"browser_navigate", r"browser_click", r"browser_type", r"browser_scroll", r"browser_snapshot", r"browser_cdp", r"browser", r"puppeteer", r"playwright", r"stagehand", r"chrome", r"page"],
+    },
+    "system_and_tasks": {
+        "name": "system_and_tasks",
+        "description": "Background process management, scheduled cron jobs, secure vault storage, session search, and task tracking",
+        "patterns": [r"process_manage", r"cronjob_manage", r"cronjob", r"browser_vault", r"vault", r"session_search", r"todo_list", r"kanban"],
+    },
+    "meta_and_skills": {
+        "name": "meta_and_skills",
+        "description": "Skills management, subagent delegation, memory storage, task coordination, and decision models",
+        "patterns": [r"skill_manage", r"skill_view", r"skills_list", r"delegate_task", r"memory", r"clarify", r"jev_", r"decide", r"supervise", r"escalate"],
+    },
+    "multimedia_and_vision": {
+        "name": "multimedia_and_vision",
+        "description": "Image/video analysis, speech synthesis (TTS), audio, visual recognition, and generative media",
+        "patterns": [r"vision_analyze", r"text_to_speech", r"\btts\b", r"video_analyze", r"video_generate", r"image_generate", r"xai_video", r"audio", r"voice"],
     },
     "code_and_git": {
         "name": "code_and_git",
-        "description": "Source code inspection, git version control, repository commits, and code analysis",
+        "description": "Source code inspection, git version control, repository commits, AST and code analysis",
         "patterns": [r"git", r"repo", r"branch", r"commit", r"diff", r"lint", r"ast", r"code"],
     },
     "devops_containers": {
         "name": "devops_containers",
-        "description": "Docker containers, system administration, processes, services, and infrastructure",
-        "patterns": [r"docker", r"container", r"process", r"service", r"system", r"k8s"],
+        "description": "Docker containers, system administration, services, infrastructure, and Kubernetes",
+        "patterns": [r"docker", r"container", r"service", r"system", r"k8s"],
     },
     "external_messaging": {
         "name": "external_messaging",
-        "description": "Sending notifications or messages to external services (Telegram, Slack, webhooks) or interactive confirmation dialogs",
-        "patterns": [r"telegram", r"slack", r"notify", r"alert", r"webhook", r"ask_user", r"approval", r"question"],
+        "description": "Sending notifications or messages to external services (Telegram, Discord, Slack, Feishu, Yuanbao, A2A) or interactive confirmation dialogs",
+        "patterns": [r"telegram", r"discord", r"slack", r"feishu", r"yb_", r"a2a_", r"notify", r"alert", r"webhook", r"ask_user", r"approval", r"question"],
     },
     "general_utility": {
         "name": "general_utility",
@@ -203,16 +286,12 @@ class ToolCategorizer:
         return "Всего тулзов: 0, категорий: 0"
 
     def recategorize(self, tools: Optional[List[Any]] = None) -> Dict[str, Any]:
-        """Force immediate re-categorization of tools and return a structured summary report."""
-        target_tools = tools or self._known_tools
-        if not target_tools:
-            try:
-                from agent import model_tools  # type: ignore[import-not-found]
-                defs = model_tools.get_tool_definitions()
-                if isinstance(defs, list):
-                    target_tools = defs
-            except Exception:
-                pass
+        """Force immediate re-categorization of tools across the full catalog and return a summary report."""
+        target_tools = collect_all_tools(extra_tools=tools or self._known_tools)
+        if not target_tools and tools:
+            target_tools = tools
+        elif not target_tools and self._known_tools:
+            target_tools = self._known_tools
 
         if not target_tools and self._in_memory_categories:
             cached_tools = []
