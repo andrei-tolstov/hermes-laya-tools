@@ -1,169 +1,65 @@
 {
-  "timestamp": "2026-10-23T13:18:12Z",
-  "train_metadata": {
-    "train_file": "/root/.hermes/skills/laya-train/data/train.jsonl",
-    "train_items": 32,
-    "eval_items": 7,
-    "base_checkpoint": "convaiinnovations/laya-multilingual",
-    "checkpoint_out": "/root/deepseek-harness/finetune-checkpoint",
-    "loss": "rlcd",
-    "epochs": 4,
-    "micro_batch": 4,
-    "grad_accum": 1,
-    "device": "cpu",
-    "gpu0_free_vram_mib": 2027,
-    "shuffle_options": true,
-    "dry_run": false,
-    "jev_integrated": true
-  },
-  "distillation_summary": {},
-  "jev_integration": {
-    "is_detected": true,
-    "is_enabled": true,
-    "hermes_home": "/root/.hermes",
-    "plugin_dir": "/root/.hermes/plugins/hermes-jev",
-    "plugin_yaml": "/root/.hermes/plugins/hermes-jev/plugin.yaml",
-    "manifest": {
-      "name": "hermes-jev",
-      "version": "0.25.0",
-      "description": "TypeSafe Jev takes the cheap decisions - model routing, skill selection, memory filtering, compaction selection, GUI and browser action choice, and (opt-in) policy decisions and a shadow command-risk gate. Choose typesafe, openrouter, venice or zen at runtime via jev setup-key; no single provider key is mandatory at install.",
-      "author": "Steve Darlow",
-      "license": "MIT",
-      "homepage": "https://github.com/kerpopule/hermes-jev-skills",
-      "manifest_version": "2",
-      "provides_tools": "",
-      "provides_hooks": "",
-      "tags": "[jev, typesafe, routing, memory, compaction, computer-use]",
-      "config_schema": "",
-      "routing": "{type: str, description: \"off | shadow | on\"}",
-      "skills": "{type: str, description: \"off | on\"}",
-      "notice": "{type: str, description: \"off | on\"}"
+  "title": "Laya (ModernBERT) vs AnyJev (Qwen2.5-1.5B Q5_K_M GGUF) Accuracy & Performance Report",
+  "timestamp": "2026-11-02T16:08:04Z",
+  "metrics_comparison": {
+    "tool_decision_accuracy": {
+      "before": 0.8571,
+      "after": 0.8571,
+      "diff": 0.0
     },
-    "jev_state_dir": "/root/.hermes/jev",
-    "logs": {
-      "decisions": "/root/.hermes/logs/jev-decisions.jsonl",
-      "ledger": "/root/.hermes/logs/jev-ledger.jsonl"
+    "category_accuracy": {
+      "before": 0.3333,
+      "after": 0.3333,
+      "diff": 0.0
     },
-    "log_counts": {
-      "decisions": 93,
-      "ledger": 1
+    "combined_strict_accuracy": {
+      "before": 0.2857,
+      "after": 0.2857,
+      "diff": 0.0
     },
-    "cli_check": {
-      "cli_available": true,
-      "found": true,
-      "line": "enabled      user     0.24.0   hermes-jev",
-      "enabled": true
+    "brier_score": {
+      "before": 0.1404,
+      "after": 0.0661,
+      "diff": -0.0743,
+      "improvement_pct": 52.92
+    },
+    "mean_confidence": {
+      "before": 0.9908,
+      "after": 0.9232,
+      "diff": -0.0676
+    },
+    "latency_ms": {
+      "before": 729.02,
+      "after": 1959.08,
+      "diff": 1230.06
     }
   },
-  "before": {
-    "phase": "before",
-    "timestamp": "2026-10-23T13:08:58Z",
-    "laya_url": "http://127.0.0.1:8787",
-    "eval_dataset": "/root/.hermes/skills/laya-train/data/eval.jsonl",
-    "metrics": {
-      "total_cases": 7,
-      "tool_decision_accuracy": 0.8571,
-      "tool_decision_matches": 6,
-      "category_accuracy": 0.3333,
-      "category_matches": 2,
-      "category_tested_cases": 6,
-      "combined_strict_accuracy": 0.2857,
-      "combined_matches": 2,
-      "mean_confidence": 0.8847,
-      "brier_score": 0.1645,
-      "calibration_sweep": [
-        {
-          "floor": 0.5,
-          "right": 2,
-          "wrong_actions": 5,
-          "stalled": 0
-        },
-        {
-          "floor": 0.55,
-          "right": 0,
-          "wrong_actions": 1,
-          "stalled": 6
-        },
-        {
-          "floor": 0.6,
-          "right": 0,
-          "wrong_actions": 1,
-          "stalled": 6
-        },
-        {
-          "floor": 0.65,
-          "right": 0,
-          "wrong_actions": 1,
-          "stalled": 6
-        },
-        {
-          "floor": 0.7,
-          "right": 0,
-          "wrong_actions": 1,
-          "stalled": 6
-        },
-        {
-          "floor": 0.75,
-          "right": 0,
-          "wrong_actions": 1,
-          "stalled": 6
-        },
-        {
-          "floor": 0.8,
-          "right": 0,
-          "wrong_actions": 1,
-          "stalled": 6
-        },
-        {
-          "floor": 0.85,
-          "right": 0,
-          "wrong_actions": 1,
-          "stalled": 6
-        },
-        {
-          "floor": 0.9,
-          "right": 0,
-          "wrong_actions": 1,
-          "stalled": 6
-        }
-      ],
-      "recommended_confidence_floor": 0.55,
-      "categories": {
-        "terminal_execution": {
-          "total": 4,
-          "correct": 2,
-          "accuracy": 0.5
-        },
-        "marketplace_and_commerce": {
-          "total": 1,
-          "correct": 0,
-          "accuracy": 0.0
-        },
-        "filesystem": {
-          "total": 1,
-          "correct": 0,
-          "accuracy": 0.0
-        }
-      }
-    },
-    "avg_latency_ms": 371.86,
-    "discrepancies_count": 5,
-    "discrepancies": [
+  "vram_comparison": {
+    "device": "NVIDIA GeForce GTX 1060 3GB",
+    "total_vram_mb": 3072,
+    "laya_modernbert_vram_mb": 1150,
+    "anyjev_qwen25_15b_vram_mb": 1426,
+    "free_vram_mb": 1641,
+    "context_window_tokens": 8192,
+    "oom_risk": "0.0% (1.64 GB headroom)"
+  },
+  "discrepancies": {
+    "before": [
       {
-        "index": 1,
-        "state_snippet": "проведи анализ на сколько имеет смысл на стороне omniroute дополнитель",
+        "index": 0,
+        "state_snippet": "бекап должен происходить в 18.00 по мск",
         "expected_decision": "execute_tools",
         "predicted_decision": "execute_tools",
         "tool_decision_match": true,
         "expected_category": "terminal_execution",
-        "predicted_category": "devops_containers",
+        "predicted_category": "web_and_search",
         "category_match": false,
         "strict_match": false,
-        "predicted_td_prob": 0.8654,
-        "predicted_td_conf": 0.8654,
-        "predicted_cat_conf": 0.2525,
-        "combined_conf": 0.5,
-        "latency_ms": 307.8
+        "predicted_td_prob": 0.991,
+        "predicted_td_conf": 0.991,
+        "predicted_cat_conf": 0.5244,
+        "combined_conf": 0.5244,
+        "latency_ms": 1758.22
       },
       {
         "index": 2,
@@ -172,14 +68,96 @@
         "predicted_decision": "execute_tools",
         "tool_decision_match": true,
         "expected_category": "marketplace_and_commerce",
-        "predicted_category": "desktop_and_computer_use",
+        "predicted_category": "terminal_execution",
         "category_match": false,
         "strict_match": false,
-        "predicted_td_prob": 0.9383,
-        "predicted_td_conf": 0.9383,
-        "predicted_cat_conf": 0.1369,
+        "predicted_td_prob": 0.9908,
+        "predicted_td_conf": 0.9908,
+        "predicted_cat_conf": 0.8959,
+        "combined_conf": 0.8959,
+        "latency_ms": 600.01
+      },
+      {
+        "index": 4,
+        "state_snippet": "у тебя запущен хром, найди его и провеlb анализ подключения cdp инстру",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "terminal_execution",
+        "predicted_category": "devops_containers",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.9913,
+        "predicted_td_conf": 0.9913,
+        "predicted_cat_conf": 0.1944,
         "combined_conf": 0.5,
-        "latency_ms": 302.13
+        "latency_ms": 572.74
+      },
+      {
+        "index": 5,
+        "state_snippet": "\"/root/projects_hermes/d\"\n\nпрочитай рассказы по ссылкам\nнапиши продолж",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "filesystem",
+        "predicted_category": "terminal_execution",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.9896,
+        "predicted_td_conf": 0.9896,
+        "predicted_cat_conf": 0.8828,
+        "combined_conf": 0.8828,
+        "latency_ms": 445.78
+      },
+      {
+        "index": 6,
+        "state_snippet": "Сжатие промптов\r\nСокращайте расход токенов, сжимая промпты перед отпра",
+        "expected_decision": "direct_chat",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": false,
+        "expected_category": "general_utility",
+        "predicted_category": "filesystem",
+        "category_match": true,
+        "strict_match": false,
+        "predicted_td_prob": 0.991,
+        "predicted_td_conf": 0.991,
+        "predicted_cat_conf": 0.123,
+        "combined_conf": 0.991,
+        "latency_ms": 708.89
+      }
+    ],
+    "after": [
+      {
+        "index": 0,
+        "state_snippet": "бекап должен происходить в 18.00 по мск",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "terminal_execution",
+        "predicted_category": "general_utility",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.8827,
+        "predicted_td_conf": 0.8827,
+        "predicted_cat_conf": 0.4113,
+        "combined_conf": 0.5,
+        "latency_ms": 2503.23
+      },
+      {
+        "index": 1,
+        "state_snippet": "проведи анализ на сколько имеет смысл на стороне omniroute дополнитель",
+        "expected_decision": "execute_tools",
+        "predicted_decision": "execute_tools",
+        "tool_decision_match": true,
+        "expected_category": "terminal_execution",
+        "predicted_category": "general_utility",
+        "category_match": false,
+        "strict_match": false,
+        "predicted_td_prob": 0.9847,
+        "predicted_td_conf": 0.9847,
+        "predicted_cat_conf": 0.7508,
+        "combined_conf": 0.7508,
+        "latency_ms": 1776.38
       },
       {
         "index": 3,
@@ -191,27 +169,27 @@
         "predicted_category": "marketplace_and_commerce",
         "category_match": false,
         "strict_match": false,
-        "predicted_td_prob": 0.9796,
-        "predicted_td_conf": 0.9796,
-        "predicted_cat_conf": 0.2616,
-        "combined_conf": 0.5,
-        "latency_ms": 420.32
+        "predicted_td_prob": 0.9635,
+        "predicted_td_conf": 0.9635,
+        "predicted_cat_conf": 0.9052,
+        "combined_conf": 0.9052,
+        "latency_ms": 1855.05
       },
       {
-        "index": 5,
-        "state_snippet": "\"/root/projects_hermes/d\"\n\nпрочитай рассказы по ссылкам\nнапиши продолж",
+        "index": 4,
+        "state_snippet": "у тебя запущен хром, найди его и провеlb анализ подключения cdp инстру",
         "expected_decision": "execute_tools",
         "predicted_decision": "execute_tools",
         "tool_decision_match": true,
-        "expected_category": "filesystem",
-        "predicted_category": "marketplace_and_commerce",
+        "expected_category": "terminal_execution",
+        "predicted_category": "browser_automation",
         "category_match": false,
         "strict_match": false,
-        "predicted_td_prob": 0.9612,
-        "predicted_td_conf": 0.9612,
-        "predicted_cat_conf": 0.3361,
-        "combined_conf": 0.5,
-        "latency_ms": 372.05
+        "predicted_td_prob": 0.9995,
+        "predicted_td_conf": 0.9995,
+        "predicted_cat_conf": 0.968,
+        "combined_conf": 0.968,
+        "latency_ms": 1777.56
       },
       {
         "index": 6,
@@ -223,162 +201,12 @@
         "predicted_category": "terminal_execution",
         "category_match": true,
         "strict_match": false,
-        "predicted_td_prob": 0.9744,
-        "predicted_td_conf": 0.9744,
-        "predicted_cat_conf": 0.2376,
-        "combined_conf": 0.9744,
-        "latency_ms": 540.48
+        "predicted_td_prob": 0.6685,
+        "predicted_td_conf": 0.6685,
+        "predicted_cat_conf": 0.7584,
+        "combined_conf": 0.6685,
+        "latency_ms": 2212.02
       }
     ]
-  },
-  "after": {
-    "phase": "after",
-    "timestamp": "2026-10-23T13:18:12Z",
-    "laya_url": "http://127.0.0.1:8787",
-    "eval_dataset": "/root/.hermes/skills/laya-train/data/eval.jsonl",
-    "metrics": {
-      "total_cases": 7,
-      "tool_decision_accuracy": 0.8571,
-      "tool_decision_matches": 6,
-      "category_accuracy": 0.6667,
-      "category_matches": 4,
-      "category_tested_cases": 6,
-      "combined_strict_accuracy": 0.5714,
-      "combined_matches": 4,
-      "mean_confidence": 0.9907,
-      "brier_score": 0.1406,
-      "calibration_sweep": [
-        {
-          "floor": 0.5,
-          "right": 4,
-          "wrong_actions": 3,
-          "stalled": 0
-        },
-        {
-          "floor": 0.55,
-          "right": 4,
-          "wrong_actions": 3,
-          "stalled": 0
-        },
-        {
-          "floor": 0.6,
-          "right": 4,
-          "wrong_actions": 3,
-          "stalled": 0
-        },
-        {
-          "floor": 0.65,
-          "right": 4,
-          "wrong_actions": 3,
-          "stalled": 0
-        },
-        {
-          "floor": 0.7,
-          "right": 4,
-          "wrong_actions": 3,
-          "stalled": 0
-        },
-        {
-          "floor": 0.75,
-          "right": 4,
-          "wrong_actions": 3,
-          "stalled": 0
-        },
-        {
-          "floor": 0.8,
-          "right": 4,
-          "wrong_actions": 3,
-          "stalled": 0
-        },
-        {
-          "floor": 0.85,
-          "right": 4,
-          "wrong_actions": 3,
-          "stalled": 0
-        },
-        {
-          "floor": 0.9,
-          "right": 4,
-          "wrong_actions": 3,
-          "stalled": 0
-        }
-      ],
-      "recommended_confidence_floor": 0.5,
-      "categories": {
-        "terminal_execution": {
-          "total": 4,
-          "correct": 4,
-          "accuracy": 1.0
-        },
-        "marketplace_and_commerce": {
-          "total": 1,
-          "correct": 0,
-          "accuracy": 0.0
-        },
-        "filesystem": {
-          "total": 1,
-          "correct": 0,
-          "accuracy": 0.0
-        }
-      }
-    },
-    "avg_latency_ms": 249.11,
-    "discrepancies_count": 3,
-    "discrepancies": [
-      {
-        "index": 2,
-        "state_snippet": "выведи список маркетплейсов которые тебе доступны",
-        "expected_decision": "execute_tools",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": true,
-        "expected_category": "marketplace_and_commerce",
-        "predicted_category": "terminal_execution",
-        "category_match": false,
-        "strict_match": false,
-        "predicted_td_prob": 0.9974,
-        "predicted_td_conf": 0.9974,
-        "predicted_cat_conf": 0.9874,
-        "combined_conf": 0.9874,
-        "latency_ms": 212.24
-      },
-      {
-        "index": 5,
-        "state_snippet": "\"/root/projects_hermes/d\"\n\nпрочитай рассказы по ссылкам\nнапиши продолж",
-        "expected_decision": "execute_tools",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": true,
-        "expected_category": "filesystem",
-        "predicted_category": "terminal_execution",
-        "category_match": false,
-        "strict_match": false,
-        "predicted_td_prob": 0.9854,
-        "predicted_td_conf": 0.9854,
-        "predicted_cat_conf": 0.9716,
-        "combined_conf": 0.9716,
-        "latency_ms": 229.41
-      },
-      {
-        "index": 6,
-        "state_snippet": "Сжатие промптов\r\nСокращайте расход токенов, сжимая промпты перед отпра",
-        "expected_decision": "direct_chat",
-        "predicted_decision": "execute_tools",
-        "tool_decision_match": false,
-        "expected_category": "general_utility",
-        "predicted_category": "terminal_execution",
-        "category_match": true,
-        "strict_match": false,
-        "predicted_td_prob": 0.9915,
-        "predicted_td_conf": 0.9915,
-        "predicted_cat_conf": 0.9926,
-        "combined_conf": 0.9915,
-        "latency_ms": 352.96
-      }
-    ]
-  },
-  "delta": {
-    "tool_decision_accuracy": 0.0,
-    "category_accuracy": 0.3334,
-    "combined_strict_accuracy": 0.2857,
-    "brier_score": -0.0239
   }
 }

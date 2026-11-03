@@ -1,0 +1,192 @@
+{
+  "phase": "eval",
+  "timestamp": "2026-11-02T20:29:04Z",
+  "laya_url": "http://192.168.50.38:8787",
+  "eval_dataset": "C:\\Users\\andrei\\projects\\hermes-laya-tools\\skills\\laya-train\\data\\eval.jsonl",
+  "metrics": {
+    "total_cases": 7,
+    "tool_decision_accuracy": 0.2857,
+    "tool_decision_matches": 2,
+    "category_accuracy": 0.1667,
+    "category_matches": 1,
+    "category_tested_cases": 6,
+    "combined_strict_accuracy": 0.1429,
+    "combined_matches": 1,
+    "mean_confidence": 0.8561,
+    "brier_score": 0.5167,
+    "calibration_sweep": [
+      {
+        "floor": 0.5,
+        "right": 1,
+        "wrong_actions": 6,
+        "stalled": 0
+      },
+      {
+        "floor": 0.55,
+        "right": 1,
+        "wrong_actions": 4,
+        "stalled": 2
+      },
+      {
+        "floor": 0.6,
+        "right": 1,
+        "wrong_actions": 2,
+        "stalled": 4
+      },
+      {
+        "floor": 0.65,
+        "right": 1,
+        "wrong_actions": 2,
+        "stalled": 4
+      },
+      {
+        "floor": 0.7,
+        "right": 1,
+        "wrong_actions": 2,
+        "stalled": 4
+      },
+      {
+        "floor": 0.75,
+        "right": 1,
+        "wrong_actions": 1,
+        "stalled": 5
+      },
+      {
+        "floor": 0.8,
+        "right": 1,
+        "wrong_actions": 1,
+        "stalled": 5
+      },
+      {
+        "floor": 0.85,
+        "right": 1,
+        "wrong_actions": 1,
+        "stalled": 5
+      },
+      {
+        "floor": 0.9,
+        "right": 1,
+        "wrong_actions": 1,
+        "stalled": 5
+      }
+    ],
+    "recommended_confidence_floor": 0.75,
+    "categories": {
+      "terminal_execution": {
+        "total": 4,
+        "correct": 0,
+        "accuracy": 0.0
+      },
+      "marketplace_and_commerce": {
+        "total": 1,
+        "correct": 1,
+        "accuracy": 1.0
+      },
+      "filesystem": {
+        "total": 1,
+        "correct": 0,
+        "accuracy": 0.0
+      }
+    }
+  },
+  "avg_latency_ms": 5204.4,
+  "discrepancies_count": 6,
+  "discrepancies": [
+    {
+      "index": 0,
+      "state_snippet": "бекап должен происходить в 18.00 по мск",
+      "expected_decision": "execute_tools",
+      "predicted_decision": "direct_chat",
+      "tool_decision_match": false,
+      "expected_category": "terminal_execution",
+      "predicted_category": "system_and_tasks",
+      "category_match": false,
+      "strict_match": false,
+      "predicted_td_prob": 0.1429,
+      "predicted_td_conf": 0.8571,
+      "predicted_cat_conf": 0.7048,
+      "combined_conf": 0.7048,
+      "latency_ms": 5206.8
+    },
+    {
+      "index": 1,
+      "state_snippet": "проведи анализ на сколько имеет смысл на стороне omniroute дополнитель",
+      "expected_decision": "execute_tools",
+      "predicted_decision": "direct_chat",
+      "tool_decision_match": false,
+      "expected_category": "terminal_execution",
+      "predicted_category": "general_utility",
+      "category_match": false,
+      "strict_match": false,
+      "predicted_td_prob": 0.1445,
+      "predicted_td_conf": 0.8555,
+      "predicted_cat_conf": 0.1975,
+      "combined_conf": 0.5,
+      "latency_ms": 4512.41
+    },
+    {
+      "index": 2,
+      "state_snippet": "выведи список маркетплейсов которые тебе доступны",
+      "expected_decision": "execute_tools",
+      "predicted_decision": "direct_chat",
+      "tool_decision_match": false,
+      "expected_category": "marketplace_and_commerce",
+      "predicted_category": "marketplace_and_commerce",
+      "category_match": true,
+      "strict_match": false,
+      "predicted_td_prob": 0.0266,
+      "predicted_td_conf": 0.9734,
+      "predicted_cat_conf": 0.9903,
+      "combined_conf": 0.9734,
+      "latency_ms": 4677.91
+    },
+    {
+      "index": 3,
+      "state_snippet": "Megamarket — только через Chrome (ServicePipe)\nLamoda — поиск через Ch",
+      "expected_decision": "execute_tools",
+      "predicted_decision": "direct_chat",
+      "tool_decision_match": false,
+      "expected_category": "terminal_execution",
+      "predicted_category": "marketplace_and_commerce",
+      "category_match": false,
+      "strict_match": false,
+      "predicted_td_prob": 0.0644,
+      "predicted_td_conf": 0.9356,
+      "predicted_cat_conf": 0.5518,
+      "combined_conf": 0.5518,
+      "latency_ms": 4791.38
+    },
+    {
+      "index": 4,
+      "state_snippet": "у тебя запущен хром, найди его и провеlb анализ подключения cdp инстру",
+      "expected_decision": "execute_tools",
+      "predicted_decision": "execute_tools",
+      "tool_decision_match": true,
+      "expected_category": "terminal_execution",
+      "predicted_category": "browser_automation",
+      "category_match": false,
+      "strict_match": false,
+      "predicted_td_prob": 0.9119,
+      "predicted_td_conf": 0.9119,
+      "predicted_cat_conf": 0.5234,
+      "combined_conf": 0.5234,
+      "latency_ms": 5162.14
+    },
+    {
+      "index": 5,
+      "state_snippet": "\"/root/projects_hermes/d\"\n\nпрочитай рассказы по ссылкам\nнапиши продолж",
+      "expected_decision": "execute_tools",
+      "predicted_decision": "direct_chat",
+      "tool_decision_match": false,
+      "expected_category": "filesystem",
+      "predicted_category": "web_and_search",
+      "category_match": false,
+      "strict_match": false,
+      "predicted_td_prob": 0.443,
+      "predicted_td_conf": 0.557,
+      "predicted_cat_conf": 0.5627,
+      "combined_conf": 0.557,
+      "latency_ms": 5270.31
+    }
+  ]
+}
