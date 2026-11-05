@@ -214,13 +214,32 @@ def _to_set(val: Any, default: Set[str]) -> Set[str]:
     return default
 
 
+#: Canonical internal id of the "Добавление топ 3" (enrich with top 3) mode.
+ENRICH_TOP3_MODE = "enrich_top3"
+#: Spellings accepted for that mode from UI / config.yaml / LAYA_MODE (compared lower-cased).
+ENRICH_TOP3_ALIASES = frozenset(
+    {
+        ENRICH_TOP3_MODE,
+        "добавление топ 3",
+        "добавление топ-3",
+        "top3",
+        "top-3",
+        "enrich",
+        "add_top_3",
+    }
+)
+
+#: Number of extra tools added to the standard list in enrich_top3 mode.
+ENRICH_TOP_N = 3
+
+
 @dataclass
 class LayaConfig:
     """Runtime configuration for Laya System 1 Decision Engine plugin."""
 
     sidecar_url: str = "http://127.0.0.1:8787"
     enabled: bool = True
-    mode: str = "active"  # "active" | "shadow"
+    mode: str = "active"  # "active" | "shadow" | "enrich_top3"
     hierarchical: bool = True
     max_tools: int = 10
     timeout_ms: int = 5000
@@ -243,6 +262,11 @@ class LayaConfig:
     def is_shadow(self) -> bool:
         """True if running in shadow mode (evaluation and logging only, no tool mutation)."""
         return self.mode.lower() == "shadow"
+
+    @property
+    def is_enrich_top3(self) -> bool:
+        """True if running in "Добавление топ 3" mode (standard tool list + Laya top-3 enrichment)."""
+        return self.mode.strip().lower() in ENRICH_TOP3_ALIASES
 
     @property
     def is_killed(self) -> bool:
@@ -279,12 +303,14 @@ class LayaConfig:
             default=True,
         )
 
-        # Mode: "active" | "shadow" (also support LAYA_SHADOW_MODE=true)
+        # Mode: "active" | "shadow" | "enrich_top3" (also support LAYA_SHADOW_MODE=true)
         raw_mode = str(
             _resolve_val(ctx, yaml_settings, "mode", ("LAYA_MODE",), "active")
         ).strip().lower()
         if _to_bool(os.environ.get("LAYA_SHADOW_MODE"), False) or raw_mode == "shadow":
             mode = "shadow"
+        elif raw_mode in ENRICH_TOP3_ALIASES:
+            mode = ENRICH_TOP3_MODE
         else:
             mode = "active"
 

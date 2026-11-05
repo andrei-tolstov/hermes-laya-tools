@@ -15,15 +15,17 @@ from typing import Any, Dict, Optional, Set
 try:
     from .categorizer import ToolCategorizer, extract_tool_name
     from .client import LayaClient
-    from .config import LayaConfig, clear_yaml_setting
+    from .config import ENRICH_TOP3_MODE, ENRICH_TOP_N, LayaConfig, clear_yaml_setting
     from .logger import LayaAuditLogger
     from .router import ToolRouter
+    from .tool_collector import discovery_tool_names, get_bridge_tools
 except ImportError:
     from categorizer import ToolCategorizer, extract_tool_name
     from client import LayaClient
-    from config import LayaConfig, clear_yaml_setting
+    from config import ENRICH_TOP3_MODE, ENRICH_TOP_N, LayaConfig, clear_yaml_setting
     from logger import LayaAuditLogger
     from router import ToolRouter
+    from tool_collector import discovery_tool_names, get_bridge_tools
 
 logger = logging.getLogger("hermes.plugin.laya")
 
@@ -38,6 +40,7 @@ _router: Optional[ToolRouter] = None
 # Track original toolsets per session to support cleanly restoring or inspecting tools
 _saved_agent_tools: Dict[str, list[Any]] = {}
 _audited_turns: Set[str] = set()
+_bridge_warned: Set[str] = set()
 _session_lock = threading.Lock()
 
 
@@ -167,8 +170,8 @@ def _setup_laya_cli(parser: Any) -> None:
         "subcommand",
         nargs="?",
         default="status",
-        choices=["status", "recategorize", "categorize", "shadow", "active", "config", "reload"],
-        help="Laya action: status | recategorize | shadow | active | config | reload",
+        choices=["status", "recategorize", "categorize", "shadow", "active", "top3", "config", "reload"],
+        help="Laya action: status | recategorize | shadow | active | top3 | config | reload",
     )
 
 
@@ -223,6 +226,11 @@ def _on_pre_llm_call(session_id: str = "", turn_id: str = "", **kwargs: Any) -> 
         _audited_turns.add(turn_key)
         if session_id and session_id not in _saved_agent_tools:
             _saved_agent_tools[session_id] = list(all_tools)
+        # Enrich mode adds tools to agent.tools; always enrich the ORIGINAL standard list,
+        # otherwise tools added on earlier turns would pile up as if they were standard.
+        if _config.is_enrich_top3 and session_id:
+            all_tools = list(_saved_agent_tools.get(session_id) or all_tools)
+        original_tools = _saved_agent_tools.get(session_id) if session_id else None
 
     effective_tools, decision = _router.route_tools(
         tools=all_tools,
@@ -230,6 +238,7 @@ def _on_pre_llm_call(session_id: str = "", turn_id: str = "", **kwargs: Any) -> 
         session_id=session_id,
         turn_id=turn_id,
         agent=agent,
+        original_tools=original_tools,
     )
 
     if _config.is_shadow:
@@ -238,15 +247,53 @@ def _on_pre_llm_call(session_id: str = "", turn_id: str = "", **kwargs: Any) -> 
 
     # ACTIVE MODE: Apply filtered toolset to agent if agent instance was found
     if agent is not None and hasattr(agent, "tools"):
-        agent.tools = effective_tools
+        _apply_effective_tools(agent, effective_tools)
 
     # Optional chat notification
     if _config.notify_in_chat:
-        notice = _format_notice(decision)
-        if notice:
-            return {"context": notice}
+        notices = [n for n in (_format_bridge_warning(session_id), _format_notice(decision)) if n]
+        if notices:
+            return {"context": "\n".join(notices)}
 
     return None
+
+
+def _apply_effective_tools(agent: Any, effective_tools: list[Any]) -> None:
+    """Expose ``effective_tools`` to the model AND to Hermes' tool-call validation.
+
+    Hermes validates every tool call against ``agent.valid_tool_names`` (built once at agent init),
+    not against ``agent.tools``; a tool shown to the model but absent there is rejected with
+    "Tool '...' does not exist". The set is only ever widened, so tools Laya merely left out of
+    this turn's list stay callable too.
+    """
+    agent.tools = effective_tools
+    if not hasattr(agent, "valid_tool_names"):
+        return
+    names = {n for n in (extract_tool_name(t) for t in effective_tools) if n}
+    current = getattr(agent, "valid_tool_names", None)
+    merged = set(current) if isinstance(current, (set, frozenset, list, tuple)) else set()
+    try:
+        agent.valid_tool_names = merged | names
+    except Exception as exc:
+        logger.debug("Could not sync agent.valid_tool_names: %s", exc)
+
+
+def _format_bridge_warning(session_id: str) -> str:
+    """One-time chat warning when Hermes' discovery tools could not be found."""
+    status = _router.bridge_status if _router else None
+    if not status or not status.get("hermes_available") or status.get("ok"):
+        return ""
+    with _session_lock:
+        if session_id in _bridge_warned:
+            return ""
+        if len(_bridge_warned) > 1000:
+            _bridge_warned.clear()
+        _bridge_warned.add(session_id)
+    problems = []
+    if status.get("unresolved"):
+        problems.append(f"нет стандартных тулзов Hermes: {', '.join(status['unresolved'])}")
+    problems.extend(status.get("api_issues") or [])
+    return "⚠️ [Laya] Прогрессивное раскрытие тулзов Hermes изменилось — " + "; ".join(problems)
 
 
 def _on_pre_api_request(**kwargs: Any) -> None:
@@ -297,6 +344,53 @@ def _on_pre_api_request(**kwargs: Any) -> None:
     )
 
 
+def _should_unlock_full_toolset(tool_name: str, session_id: str) -> bool:
+    """Did the model just reach beyond the tools Laya exposed (discovery tool or hidden tool)?"""
+    if not _router or not _config or not _config.enabled or _config.is_killed or _config.is_shadow:
+        return False
+    if _router.is_unlocked(session_id):
+        return False
+    if tool_name in discovery_tool_names():
+        return True
+    # Hermes unwraps tool_call(calls=[{name,...}]), so a hidden tool reached through the bridge
+    # arrives here under its own name although it was not in the list sent to the model.
+    exposed = (_router.last_decision or {}).get("exposed_tools")
+    return isinstance(exposed, list) and tool_name not in exposed
+
+
+def _unlock_full_toolset(session_id: str) -> None:
+    """Give the model the full tool list from the very next LLM call (this turn and later ones).
+
+    ``pre_llm_call`` fires once per user turn, so mid-turn the only way to widen the list the
+    next iteration sends is to rewrite ``agent.tools`` / ``agent.valid_tool_names`` here.
+    """
+    if _router is None:
+        return
+    _router.unlock_session(session_id)
+    agent = _get_agent_from_runtime(session_id)
+    if agent is None or not isinstance(getattr(agent, "tools", None), list):
+        return
+    bridge_tools = get_bridge_tools(
+        agent.tools,
+        fallback_sources=[_saved_agent_tools.get(session_id), _router._bridge_by_session.get(session_id or "")],
+        rebuild=True,
+    )
+    full_tools = _router.build_full_access_tools(list(agent.tools), agent, bridge_tools)
+    _apply_effective_tools(agent, full_tools)
+    names = [extract_tool_name(t) for t in full_tools]
+    _router.last_decision = {
+        "decision": "bridge_unlocked",
+        "category": None,
+        "probability": 1.0,
+        "selected_tools": names,
+        "exposed_tools": names,
+        "shadow": False,
+        "fallback_reason": "bridge_tool_called",
+        "error": None,
+    }
+    logger.info("[Laya] Discovery tool used - full tool list (%d tools) exposed to the model", len(names))
+
+
 def _on_post_tool_call(
     tool_name: str = "",
     args: Any = None,
@@ -304,6 +398,19 @@ def _on_post_tool_call(
     status: Any = None,
     **extra: Any,
 ) -> None:
+    """Record tool telemetry, and open the full tool list once the model uses discovery tools."""
+    unlock = bool(tool_name) and _should_unlock_full_toolset(tool_name, session_id)
+    try:
+        _log_tool_telemetry(tool_name, session_id, status, extra)
+    finally:
+        if unlock:
+            try:
+                _unlock_full_toolset(session_id)
+            except Exception as exc:
+                logger.warning("Failed to expose the full tool list after %s: %s", tool_name, exc)
+
+
+def _log_tool_telemetry(tool_name: str, session_id: str, status: Any, extra: Dict[str, Any]) -> None:
     """Record tool execution telemetry and evaluate router accuracy (hit/miss)."""
     global _router, _audit_logger, _config
     if not _router or not _audit_logger or not tool_name:
@@ -314,7 +421,8 @@ def _on_post_tool_call(
     if not isinstance(selected, list):
         return
 
-    is_hit = tool_name in selected
+    # Discovery tools are always exposed, so using them is never a routing miss.
+    is_hit = tool_name in selected or tool_name in discovery_tool_names()
     decision_kind = last_dec.get("decision", "unknown")
     turn_id = str(extra.get("turn_id") or "")
     mode = _config.mode if _config else "unknown"
@@ -353,6 +461,17 @@ def _format_notice(decision: Dict[str, Any]) -> str:
         tools = decision.get("selected_tools", [])
         tools_str = ", ".join(tools[:5]) + ("..." if len(tools) > 5 else "")
         return f"⚡ [Laya System 1] Category: '{cat}' ({prob:.1f}%). Selected {len(tools)} tools: {tools_str} ({lat_str})"
+    if dec == "enrich_top3":
+        cat = decision.get("category") or "general"
+        picked = decision.get("selected_tools", [])
+        added = decision.get("added_tools", [])
+        if decision.get("trivial_bypass") or not picked:
+            return ""
+        added_str = ", ".join(added) if added else "все уже в стандартном списке"
+        return (
+            f"➕ [Laya System 1] Топ-3 ({cat}, {prob:.1f}%): {', '.join(picked)}. "
+            f"Добавлено: {added_str} ({lat_str})"
+        )
     return ""
 
 
@@ -360,6 +479,25 @@ def _on_session_end(session_id: str = "", **_kwargs: Any) -> None:
     """Clean up session data when session terminates."""
     with _session_lock:
         _saved_agent_tools.pop(session_id, None)
+        _bridge_warned.discard(session_id)
+    if _router is not None:
+        _router.forget_session(session_id)
+
+
+def _format_bridge_status() -> str:
+    """Status line for /laya status: state of Hermes' tool_search/tool_describe/tool_call."""
+    status = _router.bridge_status if _router else None
+    if not status:
+        return "not checked yet"
+    if not status.get("hermes_available"):
+        return "n/a (not running inside Hermes)"
+    if status.get("ok"):
+        return "OK (" + ", ".join(sorted(extract_tool_name(t) for t in status["bridge_tools"])) + ")"
+    problems = []
+    if status.get("unresolved"):
+        problems.append("MISSING " + ", ".join(status["unresolved"]))
+    problems.extend(status.get("api_issues") or [])
+    return "ERROR: " + "; ".join(problems)
 
 
 def _laya_command(raw_args: str = "") -> str:
@@ -384,7 +522,8 @@ def _laya_command(raw_args: str = "") -> str:
                 pass
         return (
             f"Laya Engine: {status_str} ({_config.sidecar_url})\n"
-            f"Mode: {_config.mode.upper()} {'(SHADOW: primary output untouched)' if _config.is_shadow else ''}\n"
+            f"Mode: {_config.mode.upper()} {'(SHADOW: primary output untouched)' if _config.is_shadow else ''}"
+            f"{'(Добавление топ 3: стандартный список + топ-3 от Laya)' if _config.is_enrich_top3 else ''}\n"
             f"Tool Distribution: {dist}\n"
             f"Enabled: {_config.enabled}\n"
             f"Kill Switch Active: {_config.is_killed}\n"
@@ -392,6 +531,7 @@ def _laya_command(raw_args: str = "") -> str:
             f"Hierarchical: {_config.hierarchical}\n"
             f"Safety Threshold: {_config.direct_chat_threshold:.2f} (min conf: {_config.min_confidence:.2f})\n"
             f"Trivial Bypass: {_config.trivial_bypass}\n"
+            f"Hermes bridge tools: {_format_bridge_status()}\n"
             f"Cache Repeat Asks: {_config.cache_repeat_asks} (size: {_config.cache_size})\n"
             f"Always Include: {sorted(list(_config.always_include))}\n"
             f"Log File: {_config.log_path}\n"
@@ -433,6 +573,14 @@ def _laya_command(raw_args: str = "") -> str:
         _config.notify_in_chat = True
         return "Laya mode switched to ACTIVE (hierarchical filtering applied to model tools)."
 
+    if cmd in ("top3", "enrich", "enrich_top3"):
+        _config.mode = ENRICH_TOP3_MODE
+        _config.notify_in_chat = True
+        return (
+            f"Laya mode switched to «Добавление топ 3» (standard tool list kept, "
+            f"Laya top {ENRICH_TOP_N} tools missing from it are added)."
+        )
+
     if cmd in ("recategorize", "categorize"):
         if _categorizer is None:
             return "Categorizer not initialized."
@@ -451,5 +599,5 @@ def _laya_command(raw_args: str = "") -> str:
         except Exception as e:
             return f"Configuration reloaded. Model reload notice: {e}"
 
-    return "Usage: /laya [status | shadow | active | config | reload | recategorize]"
+    return "Usage: /laya [status | shadow | active | top3 | config | reload | recategorize]"
 

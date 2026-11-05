@@ -18,10 +18,10 @@ config_schema:
     description: "Включить интеллектуальную маршрутизацию инструментов через Laya Decision Engine"
   mode:
     type: str
-    choices: [active, shadow]
+    choices: [active, shadow, "Добавление топ 3"]
     default: active
     label: "Режим работы"
-    description: "active — фильтрация инструментов и передача Top-10; shadow — только фоновая оценка и аудит без изменения инструментов"
+    description: "active — фильтрация инструментов и передача Top-10; shadow — только фоновая оценка и аудит без изменения инструментов; Добавление топ 3 — обогащение стандартного списка инструментов топ-3 тулзами от Laya"
   hierarchical:
     type: bool
     default: true
@@ -64,11 +64,6 @@ config_schema:
     default: ""
     label: "Всегда доступные инструменты"
     description: "Список имен инструментов через запятую, которые никогда не отфильтровываются"
-  recategorize_now:
-    type: bool
-    default: false
-    label: "Переразбить категории сейчас"
-    description: "Принудительно запустить немедленную переразбивку всех доступных инструментов через Laya при сохранении настроек"
   trivial_bypass:
     type: bool
     default: true

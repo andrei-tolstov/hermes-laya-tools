@@ -106,6 +106,13 @@ class LayaAuditLogger:
         cat = entry["winning_category"]
         lat = f"{entry['latency_ms']}ms" if entry["latency_ms"] is not None else "n/a"
 
+        # Bridge-tool bookkeeping entries are not routing evaluations; the router logs them itself.
+        if decision == "bridge_tools_missing":
+            return
+        if decision == "bridge_unlocked":
+            logger.info("🔓 [Laya] Full tool list exposed (%d tools): %s", len(tools), entry["state_snippet"])
+            return
+
         if entry.get("error"):
             logger.warning(
                 "⚠️ [Laya %s] Evaluation failed (%s): %s. Fallback applied.",

@@ -9,10 +9,13 @@ Implements battle-tested operational patterns inspired by hermes-jev-skills:
 from __future__ import annotations
 
 import re
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Tuple
 
 # Punctuation splitter
 _WORD_SPLIT = re.compile(r"[^\w]+", re.UNICODE)
+
+# Role headers produced by ToolRouter.extract_context_state ("USER: ...", "ASSISTANT: ...")
+_ROLE_HEADER = re.compile(r"(?m)^(USER|ASSISTANT|SYSTEM|TOOL):[ \t]*")
 
 # Common acknowledgment, greeting, and confirmation words (RU + EN)
 _ACK_WORDS: Set[str] = {
@@ -62,14 +65,44 @@ _SECRET_PATTERNS = [
 ]
 
 
+def split_role_turns(text: str) -> List[Tuple[str, str]]:
+    """Split router state text (``USER: ...\nASSISTANT: ...``) into ``(ROLE, content)`` turns.
+
+    Returns an empty list when the text carries no role headers (plain user text).
+    """
+    matches = list(_ROLE_HEADER.finditer(text or ""))
+    turns: List[Tuple[str, str]] = []
+    for idx, match in enumerate(matches):
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+        turns.append((match.group(1), text[match.end():end].strip()))
+    return turns
+
+
 def looks_trivial(text: str) -> bool:
     """Check if the user turn is purely conversational acknowledgment or greeting.
 
     Returns True if the turn contains <= 6 words, all of which are common acknowledgements
     or greetings, and does not contain any tool/action verbs.
+
+    The router passes state text with role headers (``USER: ок``); only the latest turn is
+    judged, and only if it is the user's. A short reply to an assistant question
+    (``ASSISTANT: Запустить?\nUSER: да``) is a confirmation, not small talk, so it is not trivial.
     """
     if not text:
         return True
+
+    turns = split_role_turns(text)
+    if turns:
+        role, content = turns[-1]
+        if role != "USER":
+            return False
+        if len(turns) > 1:
+            prev_role, prev_content = turns[-2]
+            if prev_role == "ASSISTANT" and prev_content.rstrip().endswith(("?", "？")):
+                return False
+        text = content
+        if not text:
+            return True
 
     words = [w.lower() for w in _WORD_SPLIT.split(text.strip()) if w]
     if not words or len(words) > 6:

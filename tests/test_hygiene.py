@@ -31,6 +31,29 @@ def test_looks_trivial_russian_and_english():
     assert looks_trivial("напиши скрипт на питоне") is False
 
 
+def test_looks_trivial_with_role_prefix():
+    # ToolRouter.extract_context_state prefixes the text with the role: the prefix is not a word
+    assert looks_trivial("USER: ок") is True
+    assert looks_trivial("USER: спасибо!") is True
+    assert looks_trivial("USER: Да, спасибо") is True
+    assert looks_trivial("USER: запусти бекап") is False
+    assert looks_trivial("USER: найди наушники на Ozon") is False
+
+
+def test_looks_trivial_judges_only_latest_user_turn():
+    assert looks_trivial("USER: привет\nASSISTANT: Здравствуйте! Готов помочь.\nUSER: спасибо") is True
+    # Long earlier turns do not matter, the last user turn does
+    assert looks_trivial("USER: сделай бекап базы данных на сервере\nASSISTANT: Готово.\nUSER: ок") is True
+    assert looks_trivial("USER: ок\nASSISTANT: Готово.\nUSER: запусти тесты") is False
+    # Last turn is not the user's
+    assert looks_trivial("USER: ок\nASSISTANT: Привет") is False
+
+
+def test_looks_trivial_reply_to_assistant_question_is_not_small_talk():
+    assert looks_trivial("USER: удали логи\nASSISTANT: Удалить все логи?\nUSER: да") is False
+    assert looks_trivial("USER: удали логи\nASSISTANT: Удалить все логи?\nUSER: ок") is False
+
+
 def test_unwrap_markdown_envelopes():
     # Envelope with ## Prompt
     contract = """

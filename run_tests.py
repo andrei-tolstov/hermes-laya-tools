@@ -50,6 +50,15 @@ def run_all():
     old_cfg_env = os.environ.get("HERMES_CONFIG_PATH")
     os.environ["HERMES_CONFIG_PATH"] = empty_cfg.name
 
+    # Hermetic bridge-tool and catalog lookups: never reach into an ambient Hermes install
+    # (tools.tool_search, model_tools, tools.registry); tests that need Hermes patch these explicitly.
+    import tool_collector
+    tool_collector.hermes_bridge_names = lambda: None
+    tool_collector.running_inside_hermes = lambda: False
+    tool_collector._build_hermes_bridge_schemas = lambda deferred_count=1: []
+    for _mod_name in ("model_tools", "agent.model_tools", "tools.registry", "tools.mcp_tool_discovery"):
+        sys.modules.setdefault(_mod_name, None)
+
     test_files = sorted(root.glob("tests/test_*.py"))
     passed = 0
     failed = 0
